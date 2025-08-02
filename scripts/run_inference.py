@@ -1,19 +1,17 @@
+from models.registry import choices as model_choices, build as build_model
+from scripts.preprocess_dataset import resample_spectrum, label_file
+import torch
+import numpy as np
+import logging
+import warnings
+import argparse
+from pathlib import Path
 import sys
 import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-from pathlib import Path
 
-import argparse
-import warnings
-import logging
 
-import numpy as np
-import torch
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-from scripts.preprocess_dataset import resample_spectrum, label_file
-from models.registry import choices as model_choices, build as build_model
-
 
 
 # =============================================
@@ -52,7 +50,7 @@ if __name__ == "__main__":
         description="Run inference on a single Raman spectrum (.txt file)."
     )
     parser.add_argument("--arch", type=str, default="figure2", choices=model_choices(),
-                    help="Model architecture (must match the provided weights).")  # NEW
+                        help="Model architecture (must match the provided weights).")  # NEW
     parser.add_argument(
         "--target-len", type=int, required=True,
         help="Target length to match model input"
@@ -92,7 +90,8 @@ if __name__ == "__main__":
     try:
         # Load & preprocess Raman spectrum
         if os.path.isdir(args.input):
-            parser.error(f"Input must be a single Raman .txt file, got a directory: {args.input}")
+            parser.error(
+                f"Input must be a single Raman .txt file, got a directory: {args.input}")
 
         x_raw, y_raw = load_raman_spectrum(args.input)
         if len(x_raw) < 10:
@@ -100,17 +99,16 @@ if __name__ == "__main__":
 
         data = resample_spectrum(x_raw, y_raw, target_len=args.target_len)
         # Shape = (1, 1, target_len) — valid input for Raman inference
-        input_tensor = torch.tensor(data, dtype=torch.float32).unsqueeze(0).unsqueeze(0).to(DEVICE)
-
+        input_tensor = torch.tensor(data, dtype=torch.float32).unsqueeze(
+            0).unsqueeze(0).to(DEVICE)
 
         # 2. Load Model (via shared model registry)
         model = build_model(args.arch, args.target_len).to(DEVICE)
         if args.model != "random":
-            state = torch.load(args.model, map_location="cpu") # broad compatibility
+            # broad compatibility
+            state = torch.load(args.model, map_location="cpu")
             model.load_state_dict(state)
         model.eval()
-        
-        
 
         # 3. Inference
         with torch.no_grad():

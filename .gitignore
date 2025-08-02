@@ -44,11 +44,3 @@ wea-*.txt
 sta-*.txt
 scripts/generate_saliency.py
 scripts/compare_samples.py
-# --- Data (keep folder, ignore files) ---
-datasets/**
-!datasets/.gitkeep
-!datasets/.README.md
-# ---------------------------------------
-outputs/resnet18vision_model.pth
-requirements_0.txt
-requirements.txt

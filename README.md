@@ -1,4 +1,3 @@
-
 # 🔬 AI-Driven Polymer Aging Prediction and Classification System
 
 A research project developed as part of AIRE 2025. This system applies deep learning to spectral data to classify polymer aging a critical proxy for recyclability using a fully reproducible and modular ML pipeline.
@@ -20,17 +19,18 @@ The broader research vision is a multi-modal evaluation platform, benchmarking n
   > Deep learning for chemometric analysis of plastic spectral data from infrared and Raman databases.
   > Resources, Conservation & Recycling, 188, 106718.
   > https://doi.org/10.1016/j.resconrec.2022.106718
+
 ---
 
 ## 🧠 Model Architectures
 
-| Model| Description |
-|------|-------------|
-| `Figure2CNN`  | Baseline model from literature |
-| `ResNet1D`    | Deeper candidate model with skip connections |
+| Model            | Description                                                            |
+| ---------------- | ---------------------------------------------------------------------- |
+| `Figure2CNN`     | Baseline model from literature                                         |
+| `ResNet1D`       | Deeper candidate model with skip connections                           |
 | `ResNet18Vision` | Image-focused CNN architecture, retrained on polymer dataset (roadmap) |
 
-  Future expansions will add additional trained CNNs, supporting direct benchmarking and comparative reporting.
+Future expansions will add additional trained CNNs, supporting direct benchmarking and comparative reporting.
 
 ---
 
@@ -52,11 +52,11 @@ ml-polymer-recycling/
 
 ## ✅ Current Status
 
-| Track     | Status               | Test Accuracy |
-|-----------|----------------------|----------------|
-| **Raman** | ✅ Active & validated  | **87.81% ± 7.59%** |
-| **Image**  | 🚧 Planned Expansion | N/A |
-| **FTIR**  | ⏸️ Deferred/Modularized | N/A |
+| Track     | Status                  | Test Accuracy      |
+| --------- | ----------------------- | ------------------ |
+| **Raman** | ✅ Active & validated   | **87.81% ± 7.59%** |
+| **Image** | 🚧 Planned Expansion    | N/A                |
+| **FTIR**  | ⏸️ Deferred/Modularized | N/A                |
 
 ## 🔬 Key Features
 
@@ -95,8 +95,8 @@ python scripts/train_model.py --model resnet --target-len 4000 --baseline --smoo
 ### Inference (Raman)
 
 ```bash
-python scripts/run_inference.py --target-len 4000 
---input datasets/rdwp/sample123.txt --model outputs/resnet_model.pth 
+python scripts/run_inference.py --target-len 4000
+--input datasets/rdwp/sample123.txt --model outputs/resnet_model.pth
 --output outputs/inference/prediction.txt
 ```
 
@@ -119,8 +119,8 @@ Raw Logits: [[-569.544, 427.996]]
 
 ## 📚 Dataset Resources
 
-| Type  | Dataset | Source |
-|-------|---------|--------|
+| Type  | Dataset | Source                                                                                                                    |
+| ----- | ------- | ------------------------------------------------------------------------------------------------------------------------- |
 | Raman | RDWP    | [A Raman database of microplastics weathered under natural environments](https://data.mendeley.com/datasets/kpygrf9fg6/1) |
 
 | Datasets should be downloaded separately and placed here:
@@ -153,7 +153,7 @@ These files are intentionally excluded from version control via `.gitignore`
 
 - **Dr. Sanmukh Kuppannagari** — Research Mentor
 - **Dr. Metin Karailyan** — Research Mentor
-- **Jaser H.** — AIRE 2025 Intern, Developer  
+- **Jaser H.** — AIRE 2025 Intern, Developer
 
 ---
 
@@ -163,7 +163,7 @@ These files are intentionally excluded from version control via `.gitignore`
 
 1. **Model Expansion: Multi-Model Dashboard**
 
-    > The dashboard will evolve into a hub for multiple model architectures rather than being tied to a single baseline. Planned work includes:
+   > The dashboard will evolve into a hub for multiple model architectures rather than being tied to a single baseline. Planned work includes:
 
    - **Retraining & Fine-Tuning**: Incorporating publicly available vision models and retraining them with the polymer dataset.
    - **Model Registry**: Automatically detecting available .pth weights and exposing them in the dashboard for easy selection.
@@ -174,7 +174,7 @@ These files are intentionally excluded from version control via `.gitignore`
 
 2. **Image Input Modality**
 
-    > The system will support classification on images as an additional modality, extending beyond spectra. Key features will include:
+   > The system will support classification on images as an additional modality, extending beyond spectra. Key features will include:
 
    - **Upload Support**: Users can upload single images or batches directly through the dashboard.
    - **Multi-Model Execution**: Selected models from the registry can be applied to all uploaded images simultaneously.
@@ -185,14 +185,14 @@ These files are intentionally excluded from version control via `.gitignore`
 
 3. **FTIR Dataset Integration**
 
-    > Although previously deferred, FTIR support will be added back in a modular, distinct fashion. Planned steps are:
+   > Although previously deferred, FTIR support will be added back in a modular, distinct fashion. Planned steps are:
 
-    - **Dedicated Preprocessing**: Tailored scripts to handle FTIR-specific signal characteristics (multi-layer handling, baseline correction, normalization).
-    - **Architecture Compatibility**: Ensuring existing and retrained models can process FTIR data without mixing it with Raman workflows.
-    - **UI Integration**: Introducing FTIR as a separate option in the modality selector, keeping Raman, Image, and FTIR workflows clearly delineated.
-    - **Phased Development**: Implementation details to be refined during meetings to ensure scientific rigor.
+   - **Dedicated Preprocessing**: Tailored scripts to handle FTIR-specific signal characteristics (multi-layer handling, baseline correction, normalization).
+   - **Architecture Compatibility**: Ensuring existing and retrained models can process FTIR data without mixing it with Raman workflows.
+   - **UI Integration**: Introducing FTIR as a separate option in the modality selector, keeping Raman, Image, and FTIR workflows clearly delineated.
+   - **Phased Development**: Implementation details to be refined during meetings to ensure scientific rigor.
 
-    This guarantees FTIR becomes a supported modality without undermining the validated Raman foundation.
+   This guarantees FTIR becomes a supported modality without undermining the validated Raman foundation.
 
 ## 🔑 Guiding Principles
 
@@ -200,4 +200,3 @@ These files are intentionally excluded from version control via `.gitignore`
 - **Additive modularity**: Models, images, and FTIR added as clean, distinct layers rather than overwriting core functionality
 - **Transparency & reproducibility**: All expansions documented, tested, and logged with clear outputs.
 - **Future-oriented design**: Workflows structured to support ongoing collaboration and successor-safe research.
-
