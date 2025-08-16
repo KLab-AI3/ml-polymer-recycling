@@ -162,7 +162,8 @@ These files are intentionally excluded from version control via `.gitignore`
 ## 🧑‍🤝‍🧑 Contributors
 
 - **Jaser H.** — AIRE 2025 Intern, Developer  
-- **Dr. Kuppannagari** — Research Mentor  
+- **Dr. Sanmukh Kuppannagari** — Research Mentor
+- **Dr. Metin Karailyan** — Research Mentor
 
 ---
 
@@ -173,3 +174,4 @@ These files are intentionally excluded from version control via `.gitignore`
 - 📈 Visual tools and presentation assets for showcase-ready delivery
 - 🪪 Prepare presentation-ready visuals and model cards for final reporting
 - ✅ Canonical validation completed (`@validation-loop-complete`)
+
