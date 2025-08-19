@@ -1,14 +1,16 @@
 """
-Streamlit UI for ml-polymer-recycling — Step 3a: Multi-Modality Interface Skeleton
-- Introduces top-level modality selector (Raman | Image | FTIR)
-- Modular routing for each modality with scoped navigation
-- Only Raman pages are active (Model Management, Inference)
-- Image/FTIR pages show 'Coming Soon' placeholders
-- All routing and session state preserved cleanly
+Streamlit UI for ml-polymer-recycling — Step 3b: Raman Upload → Parse → Preview
+- Adds real file uploader to Raman Inference page
+- Accepts .txt Raman spectra (single or batch)
+- Parses one- or two-column format
+- Displays file name and data table preview per upload
+- No inference or resampling yet
 """
 
 import streamlit as st
 from pathlib import Path
+import pandas as pd
+import io
 
 # --- PAGE CONFIGURATION ---
 st.set_page_config(
@@ -73,6 +75,22 @@ def discover_models(outputs_dir="outputs"):
         out.append(p)
     return out
 
+# --- RAMAN HELPERS ---
+def parse_txt_file(upload) -> pd.DataFrame:
+    try:
+        content = upload.read()
+        upload.seek(0)
+        buf = io.BytesIO(content)
+        try:
+            df = pd.read_csv(buf, sep=None, engine="python", header=None, comment="#")
+        except Exception:
+            buf.seek(0)
+            df = pd.read_csv(buf, delim_whitespace=True, header=None, comment="#")
+        return df
+    except Exception as e:
+        st.error(f"Failed to parse file: {upload.name}. Error: {e}")
+        return pd.DataFrame()
+
 # --- RAMAN PAGES ---
 def raman_dashboard():
     display_header("Raman Dashboard")
@@ -90,7 +108,22 @@ def raman_model_management():
 
 def raman_inference():
     display_header("Raman Inference")
-    st.write("This will house the real-time spectrum upload and model prediction interface.")
+
+    uploads = st.file_uploader(
+        "Upload one or more Raman .txt spectra (single- or two-column)",
+        type="txt",
+        accept_multiple_files=True
+    )
+
+    if uploads:
+        for file in uploads:
+            st.markdown(f"**Preview: {file.name}**")
+            df = parse_txt_file(file)
+            if not df.empty:
+                st.dataframe(df.head(10), use_container_width=True)
+            else:
+                st.warning("No data parsed or file unreadable.")
+            st.markdown("---")
 
 # --- IMAGE + FTIR PLACEHOLDERS ---
 def image_model_management():
