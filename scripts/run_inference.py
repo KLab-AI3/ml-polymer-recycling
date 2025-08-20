@@ -1,6 +1,7 @@
 import sys
 import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+from pathlib import Path
 
 import argparse
 import warnings
@@ -125,6 +126,8 @@ if __name__ == "__main__":
 
         # 5. Save or stdout
         if args.output:
+            # ensure parent dir exists (e.g., outputs/inference/)
+            Path(args.output).parent.mkdir(parents=True, exist_ok=True)
             with open(args.output, "w", encoding="utf-8") as fout:
                 fout.write(result)
             logging.info("Result saved to %s", args.output)
