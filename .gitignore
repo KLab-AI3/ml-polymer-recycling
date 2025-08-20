@@ -44,3 +44,8 @@ wea-*.txt
 sta-*.txt
 scripts/generate_saliency.py
 scripts/compare_samples.py
+# --- Data (keep folder, ignore files) ---
+datasets/**
+!datasets/.gitkeep
+!datasets/.README.md
+# ---------------------------------------
