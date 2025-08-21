@@ -9,9 +9,11 @@ import logging
 
 import numpy as np
 import torch
+DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-from models.figure2_cnn import Figure2CNN
 from scripts.preprocess_dataset import resample_spectrum, label_file
+from models.registry import choices as model_choices, build as build_model
+
 
 
 # =============================================
@@ -49,6 +51,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="Run inference on a single Raman spectrum (.txt file)."
     )
+    parser.add_argument("--arch", type=str, default="figure2", choices=model_choices(),
+                    help="Model architecture (must match the provided weights).")  # NEW
     parser.add_argument(
         "--target-len", type=int, required=True,
         help="Target length to match model input"
@@ -96,18 +100,17 @@ if __name__ == "__main__":
 
         data = resample_spectrum(x_raw, y_raw, target_len=args.target_len)
         # Shape = (1, 1, target_len) — valid input for Raman inference
-        input_tensor = torch.tensor(data, dtype=torch.float32).unsqueeze(0).unsqueeze(0)
+        input_tensor = torch.tensor(data, dtype=torch.float32).unsqueeze(0).unsqueeze(0).to(DEVICE)
 
-        # 2. Load Model
-        model = Figure2CNN(
-            input_length=args.target_len,
-            input_channels=1
-        )
+
+        # 2. Load Model (via shared model registry)
+        model = build_model(args.arch, args.target_len).to(DEVICE)
         if args.model != "random":
-            model.load_state_dict(
-                torch.load(args.model, map_location="cpu", weights_only=True)
-            )
+            state = torch.load(args.model, map_location="cpu") # broad compatibility
+            model.load_state_dict(state)
         model.eval()
+        
+        
 
         # 3. Inference
         with torch.no_grad():
