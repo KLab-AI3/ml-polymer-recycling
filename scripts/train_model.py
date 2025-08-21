@@ -7,10 +7,23 @@ from torch.utils.data import TensorDataset, DataLoader
 from sklearn.model_selection import StratifiedKFold
 from sklearn.metrics import confusion_matrix
 
+import random
+import json
+
+# Reproducibility
+SEED = 42
+random.seed(SEED)
+np.random.seed(SEED)
+torch.manual_seed(SEED)
+if torch.cuda.is_available():
+    torch.cuda.manual_seed_all(SEED)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+
 # Add project-specific imports
 from scripts.preprocess_dataset import preprocess_dataset
-from models.figure2_cnn import Figure2CNN
-from models.resnet_cnn import ResNet1D
+from models.registry import choices as model_choices, build as build_model
+
 
 # Argument parser for CLI usage
 parser = argparse.ArgumentParser(
