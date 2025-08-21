@@ -167,11 +167,46 @@ These files are intentionally excluded from version control via `.gitignore`
 
 ---
 
-## 🚧 Next Steps
+## 🎯 Strategic Expansion Objectives
 
-- 🔍 Review diagnostics logs and summarize results in reports
-- 🔬 Conduct small-scale hyperparameter sweeps
-- 📈 Visual tools and presentation assets for showcase-ready delivery
-- 🪪 Prepare presentation-ready visuals and model cards for final reporting
-- ✅ Canonical validation completed (`@validation-loop-complete`)
+> Following Dr. Kuppannagari’s updated guidance, the project scope now extends beyond the Raman-only validated baseline. The roadmap defines three major expansion paths designed to broaden the system’s capabilities and impact:
 
+1. **Model Expansion: Multi-Model Dashboard**
+
+    > The dashboard will evolve into a hub for multiple model architectures rather than being tied to a single baseline. Planned work includes:
+
+   - **Retraining & Fine-Tuning**: Incorporating publicly available vision models and retraining them with the polymer dataset.
+   - **Model Registry**: Automatically detecting available .pth weights and exposing them in the dashboard for easy selection.
+   - **Side-by-Side Reporting**: Running comparative experiments and reporting each model’s accuracy and diagnostics in a standardized format.
+   - **Reproducible Integration**: Maintaining modular scripts and pipelines so each model’s results can be replicated without conflict.
+
+   This ensures flexibility for future research and transparency in performance comparisons.
+
+2. **Image Input Modality**
+
+    > The system will support classification on images as an additional modality, extending beyond spectra. Key features will include:
+
+   - **Upload Support**: Users can upload single images or batches directly through the dashboard.
+   - **Multi-Model Execution**: Selected models from the registry can be applied to all uploaded images simultaneously.
+   - **Batch Results**: Output will be returned in a structured, accessible way, showing both individual predictions and aggregate statistics.
+   - **Enhanced Feedback**: Outputs will include predicted class, model confidence, and potentially annotated image previews.
+
+   This expands the system toward a multi-modal framework, supporting broader research workflows.
+
+3. **FTIR Dataset Integration**
+
+    > Although previously deferred, FTIR support will be added back in a modular, distinct fashion. Planned steps are:
+
+    - **Dedicated Preprocessing**: Tailored scripts to handle FTIR-specific signal characteristics (multi-layer handling, baseline correction, normalization).
+    - **Architecture Compatibility**: Ensuring existing and retrained models can process FTIR data without mixing it with Raman workflows.
+    - **UI Integration**: Introducing FTIR as a separate option in the modality selector, keeping Raman, Image, and FTIR workflows clearly delineated.
+    - **Phased Development**: Implementation details to be refined during meetings to ensure scientific rigor.
+
+    This guarantees FTIR becomes a supported modality without undermining the validated Raman foundation.
+
+## 🔑 Guiding Principles
+
+- **Preserve the Raman baseline** as the reproducible ground truth
+- **Additive modularity**: Models, images, and FTIR added as clean, distinct layers rather than overwriting core functionality
+- **Transparency & reproducibility**: All expansions documented, tested, and logged with clear outputs.
+- **Future-oriented design**: Workflows structured to support ongoing collaboration and successor-safe research.
