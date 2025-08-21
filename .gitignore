@@ -49,3 +49,5 @@ datasets/**
 !datasets/.gitkeep
 !datasets/.README.md
 # ---------------------------------------
+outputs/resnet18vision_model.pth
+requirements_0.txt
