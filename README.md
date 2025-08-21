@@ -161,9 +161,9 @@ These files are intentionally excluded from version control via `.gitignore`
 
 ## 🧑‍🤝‍🧑 Contributors
 
-- **Jaser H.** — AIRE 2025 Intern, Developer  
 - **Dr. Sanmukh Kuppannagari** — Research Mentor
 - **Dr. Metin Karailyan** — Research Mentor
+- **Jaser H.** — AIRE 2025 Intern, Developer  
 
 ---
 
