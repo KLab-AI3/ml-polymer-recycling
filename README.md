@@ -30,14 +30,17 @@ A research project developed as part of AIRE 2025. This system applies deep lear
 ## 📁 Project Structure (Cleaned and Current)
 
 ```text
-polymer_project/
-├── datasets/rdwp     # Raman spectra  
+ml-polymer-recycling/
+├── datasets/
 ├── models/           # Model architectures
 ├── scripts/          # Training, inference, utilities
 ├── outputs/          # Artifacts: models, logs, plots
 ├── docs/             # Documentation & reports
 └── environment.yml   # (local) Conda execution environment
 ```
+
+<img width="1773" height="848" alt="ml-polymer-gitdiagram-0" src="https://github.com/user-attachments/assets/bb5d93dc-7ab9-4259-8513-fb680ae59d64" />
+
 
 ---
 
@@ -69,13 +72,6 @@ polymer_project/
 - ✅ Canonical validation script (`validate_pipeline.sh`) confirms reproducibility of all core components
 
 ---
-
-## 🔀 Branching Strategy
-
-| Branch | Purpose|
-|--------|--------|
-| `main` | Local development (CPU) |
-| `hpc_main` | Cluster-ready (HPC; GPU) |
 
 **Environments:**
 
@@ -210,3 +206,4 @@ These files are intentionally excluded from version control via `.gitignore`
 - **Additive modularity**: Models, images, and FTIR added as clean, distinct layers rather than overwriting core functionality
 - **Transparency & reproducibility**: All expansions documented, tested, and logged with clear outputs.
 - **Future-oriented design**: Workflows structured to support ongoing collaboration and successor-safe research.
+
