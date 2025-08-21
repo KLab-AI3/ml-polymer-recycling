@@ -24,3 +24,8 @@
 - Train (figure2) via registry: ✅
 - Inference unchanged paths: ✅
 **Notes:** Artifacts remain `outputs/{model}_model.pth` to avoid breaking validator; inference arch flag to be added next.
+## @model-expansion-resnet18vision-2025-08-21
+**Goal:** Introduce a second architecture and prove multi-model training/inference via shared registry.
+**Changes:** `models/resnet18_vision.py` (1D), registry entry, `run_inference.py --arch`.
+**Tests:** Train (1 epoch) -> `outputs/resnet18vision_model.pth`; Inference JSON ✅
+**Notes:** Backward compatibility preserved (`--arch` defaults to figure2).
