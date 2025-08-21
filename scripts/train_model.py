@@ -1,4 +1,5 @@
-import os, sys, json
+import os
+import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from datetime import datetime
 import argparse, numpy as np, torch
@@ -21,8 +22,8 @@ parser.add_argument("--normalize", action="store_true")
 parser.add_argument("--batch-size", type=int, default=16)
 parser.add_argument("--epochs", type=int, default=10)
 parser.add_argument("--learning-rate", type=float, default=1e-3)
-parser.add_argument("--model", type=str, default="figure2",
-                    choices=["figure2", "resnet"])
+parser.add_argument("--model", type=str, default="figure2", choices=model_choices())
+
 args = parser.parse_args()
 
 # Constants
@@ -36,7 +37,8 @@ os.makedirs("outputs", exist_ok=True)
 os.makedirs("outputs/logs", exist_ok=True)
 
 print("Preprocessing Configuration:")
-print(f"    Reseample to    : {args.target_len}")
+print(f"    Resample to     : {args.target_len}")
+
 print(f"    Baseline Correct: {'✅' if args.baseline else '❌'}")
 print(f"    Smoothing       : {'✅' if args.smooth else '❌'}")
 print(f"    Normalization   : {'✅' if args.normalize else '❌'}")
@@ -66,14 +68,13 @@ for fold, (train_idx, val_idx) in enumerate(skf.split(X, y), 1):
     y_train, y_val = y[train_idx], y[val_idx]
 
     train_loader = DataLoader(
-        TensorDataset(torch.tensor(X_train), torch.tensor(y_train)),
+        TensorDataset(torch.tensor(X_train, dtype=torch.float32), torch.tensor(y_train, dtype=torch.long)),
         batch_size=args.batch_size, shuffle=True)
     val_loader = DataLoader(
-        TensorDataset(torch.tensor(X_val), torch.tensor(y_val)),batch_size=args.batch_size)
+        TensorDataset(torch.tensor(X_val,   dtype=torch.float32), torch.tensor(y_val,   dtype=torch.long)))
 
     # Model selection
-    model = (Figure2CNN if args.model == "figure2" else ResNet1D)(
-        input_length=args.target_len).to(DEVICE)
+    model = build_model(args.model, args.target_len).to(DEVICE)
     
     optimizer = torch.optim.Adam(model.parameters(), lr=args.learning_rate)
     criterion = torch.nn.CrossEntropyLoss()
@@ -127,9 +128,10 @@ print(f"✅ Model saved to {model_path}")
 
 
 def save_diagnostics_log(fold_acc, confs, args_param, output_path):
-    fold_metrics = [{"fold": i+1, "accuracy": acc,
-                    "confusion_matrix": c.tolist()}
-        for i, (a, c) in enumerate(zip(fold_acc, confs))]
+    fold_metrics = [
+    {"fold": i + 1, "accuracy": float(a), "confusion_matrix": c.tolist()}
+    for i, (a, c) in enumerate(zip(fold_acc, confs))
+]
     log = {
         "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "preprocessing": {
