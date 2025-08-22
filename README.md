@@ -1,19 +1,25 @@
 
 # 🔬 AI-Driven Polymer Aging Prediction and Classification System
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+A research project developed as part of AIRE 2025. This system applies deep learning to spectral data to classify polymer aging a critical proxy for recyclability using a fully reproducible and modular ML pipeline.
 
-A research project developed as part of AIRE 2025. This system applies deep learning to Raman spectral data to classify polymer aging — a critical proxy for recyclability — using a fully reproducible and modular ML pipeline.
+The broader research vision is a multi-modal evaluation platform, benchmarking not only Raman spectra but also image-based models and FTIR spectral data, ensuring reproducibility, extensibility, and scientific rigor.
 
 ---
 
 ## 🎯 Project Objective
 
 - Build a validated machine learning system for classifying polymer spectra (predict degradation levels as a proxy for recyclability)
-- Compare literature-based and modern CNN architectures (Figure2CNN vs. ResNet1D) on Raman spectral data
+- Evaluate and compare multiple CNN architectures, beginning with Figure2CNN and ResNet variants, and expand to additional trained models.
 - Ensure scientific reproducibility through structured diaignostics and artifact control
 - Support sustainability and circular materials research through spectrum-based classification.
 
+  **Reference (for Figure2CNN baseline):**
+
+  > Neo, E.R.K., Low, J.S.C., Goodship, V., Debattista, K. (2023).
+  > Deep learning for chemometric analysis of plastic spectral data from infrared and Raman databases.
+  > Resources, Conservation & Recycling, 188, 106718.
+  > https://doi.org/10.1016/j.resconrec.2022.106718
 ---
 
 ## 🧠 Model Architectures
@@ -22,8 +28,9 @@ A research project developed as part of AIRE 2025. This system applies deep lear
 |------|-------------|
 | `Figure2CNN`  | Baseline model from literature |
 | `ResNet1D`    | Deeper candidate model with skip connections |
+| `ResNet18Vision` | Image-focused CNN architecture, retrained on polymer dataset (roadmap) |
 
-> Both models support flexible input lengths; Figure2CNN relies on reshape logic, while ResNet1D uses native global pooling.
+  Future expansions will add additional trained CNNs, supporting direct benchmarking and comparative reporting.
 
 ---
 
@@ -39,8 +46,7 @@ ml-polymer-recycling/
 └── environment.yml   # (local) Conda execution environment
 ```
 
-<img width="1773" height="848" alt="ml-polymer-gitdiagram-0" src="https://github.com/user-attachments/assets/bb5d93dc-7ab9-4259-8513-fb680ae59d64" />
-
+![ml-polymer-gitdiagram-0](https://github.com/user-attachments/assets/bb5d93dc-7ab9-4259-8513-fb680ae59d64)
 
 ---
 
@@ -49,17 +55,8 @@ ml-polymer-recycling/
 | Track     | Status               | Test Accuracy |
 |-----------|----------------------|----------------|
 | **Raman** | ✅ Active & validated  | **87.81% ± 7.59%** |
-| **FTIR**  | ⏸️ Deferred (modeling only) | N/A |
-
-**Note:** FTIR preprocessing scripts are preserved but inactive. Modeling work is deferred until a suitable architecture is identified.
-
-**Artifacts:**
-
-- `outputs/figure2_model.pth`
-- `outputs/resnet_model.pth`
-- `outputs/logs/raman_{model}_diagnostics.json`
-
----
+| **Image**  | 🚧 Planned Expansion | N/A |
+| **FTIR**  | ⏸️ Deferred/Modularized | N/A |
 
 ## 🔬 Key Features
 
@@ -76,7 +73,6 @@ ml-polymer-recycling/
 **Environments:**
 
 ```bash
-
 # Local
 git checkout main
 conda env create -f environment.yml
@@ -93,14 +89,12 @@ conda activate polymer_env
 ### Training (10-Fold CV)
 
 ```bash
-
 python scripts/train_model.py --model resnet --target-len 4000 --baseline --smooth --normalize
 ```
 
 ### Inference (Raman)
 
 ```bash
-
 python scripts/run_inference.py --target-len 4000 
 --input datasets/rdwp/sample123.txt --model outputs/resnet_model.pth 
 --output outputs/inference/prediction.txt
@@ -163,9 +157,9 @@ These files are intentionally excluded from version control via `.gitignore`
 
 ---
 
-## 🎯 Strategic Expansion Objectives
+## 🎯 Strategic Expansion Objectives (Roadmap)
 
-> Following Dr. Kuppannagari’s updated guidance, the project scope now extends beyond the Raman-only validated baseline. The roadmap defines three major expansion paths designed to broaden the system’s capabilities and impact:
+> The roadmap defines three major expansion paths designed to broaden the system’s capabilities and impact:
 
 1. **Model Expansion: Multi-Model Dashboard**
 
