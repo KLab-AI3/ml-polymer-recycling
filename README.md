@@ -1,7 +1,7 @@
 ---
 title: AI Polymer Classification
 emoji: 🔬
-colorFrom: blue
+colorFrom: indigo
 colorTo: green
 sdk: Docker
 app_file: app.py
