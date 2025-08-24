@@ -3,7 +3,7 @@ title: AI Polymer Classification
 emoji: 🔬
 colorFrom: indigo
 colorTo: green
-sdk: docker
+sdk: streamlit
 app_file: app.py
 pinned: false
 license: apache-2.0
