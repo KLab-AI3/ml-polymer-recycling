@@ -1,0 +1,27 @@
+name: Sync HF Space Deploy
+on:
+  push:
+    branches: [main]
+    paths:
+      - "deploy/hf-space/**"
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Prepare payload
+        run: |
+          rm -rf /tmp/space && mkdir -p /tmp/space
+          cp -R deploy/hf-space/* /tmp/space/
+
+      - name: Overlay payload onto space-deploy (preserve other dirs)
+        run: |
+          git checkout space-deploy
+          cp -R /tmp/space/* .
+          git add -A
+          git commit -m "(DEPLOY): sync from deploy/hf-space on main" || echo "No changes"
+          git push origin space-deploy
