@@ -1,3 +1,13 @@
+---
+title: AI Polymer Classification
+emoji: 🔬
+colorFrom: blue
+colorTo: green
+sdk: Docker
+app_file: app.py
+pinned: false
+license: apache-2.0
+---
 
 # 🔬 AI-Driven Polymer Aging Prediction and Classification System
 
