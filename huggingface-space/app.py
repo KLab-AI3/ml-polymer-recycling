@@ -515,5 +515,5 @@ def main():
             - 🏭 Quality control in manufacturing
             """)
 
-if __name__ == "__main__":
-    main()
+# Run the main application
+main()
