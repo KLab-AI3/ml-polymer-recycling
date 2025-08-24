@@ -52,3 +52,7 @@ datasets/**
 outputs/resnet18vision_model.pth
 requirements_0.txt
 requirements.txt
+
+# Hugging Face Spaces model weights (too large for git)
+huggingface-space/model_weights/*.pth
+huggingface-space/model_weights/*.pt
