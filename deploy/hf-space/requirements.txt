@@ -1,0 +1,13 @@
+altair
+fastapi
+huggingface-hub
+numpy
+pandas
+pydantic
+scikit-learn
+scipy
+streamlit
+torch
+torchvision
+uvicorn
+matplotlib
