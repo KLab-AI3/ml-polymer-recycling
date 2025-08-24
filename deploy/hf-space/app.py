@@ -107,11 +107,14 @@ def load_model(model_name):
         # Load weights
         state_dict = torch.load(model_path, map_location="cpu")
         model.load_state_dict(state_dict, strict=False)
-        model.eval()
+        if model is not None:
+            model.eval()
+        else:
+            raise ValueError("Model is not loaded. Please check the model configuration or weights.")
 
         return model, True
 
-    except Exception as e:
+    except (FileNotFoundError, ValueError, RuntimeError) as e:
         st.error(f"❌ Error loading model {model_name}: {str(e)}")
         return None, False
 
@@ -217,6 +220,20 @@ def init_session_state():
         if key not in st.session_state:
             st.session_state[key] = default_value
 
+def reset_app():
+    """Hard reset: clear cache and session state, then rerun."""
+    try:
+        st.cache_resource.clear()
+    except RuntimeError:
+        pass
+    try:
+        st.cache_data.clear()
+    except Exception:
+        pass
+    for k in list(st.session_state.keys()):
+        del st.session_state[k]
+    st.rerun()
+
 # Main app
 def main():
     init_session_state()
@@ -229,11 +246,10 @@ def main():
     with st.sidebar:
         st.header("ℹ️ About This App")
         st.markdown("""
-        **AIRE 2025 Internship Project**  
         AI-Driven Polymer Aging Prediction and Classification
         
-        🎯 **Purpose**: Classify polymer degradation using AI  
-        📊 **Input**: Raman spectroscopy data  
+        🎯 **Purpose**: Classify polymer degradation using ML  
+        📊 **Input**: Raman/FTIR spectroscopy data  
         🧠 **Models**: CNN architectures for binary classification  
         
         **Team**: 
@@ -262,6 +278,30 @@ def main():
         - **Accuracy**: `{config['accuracy']}`
         - **F1 Score**: `{config['f1']}`
         """)
+
+        # Weights source indicator (resolved path + existence + size)
+        try:
+            resolved_path = os.path.abspath(config["path"])
+            exists = os.path.exists(resolved_path)
+            size_mb = (os.path.getsize(resolved_path) / (1024 * 1024)) if exists else None
+            env_src = os.getenv("WEIGHTS_DIR")
+            with st.expander("Weights source", expanded=False):
+                st.code(resolved_path, language="bash")
+                st.write(
+                    ("✅ **Found**" + (f" • {size_mb:.2f} MB" if size_mb is not None else ""))
+                    if exists else "⚠️ **Missing**"
+                )
+                if env_src:
+                    st.caption(f"WEIGHTS_DIR env: `{env_src}`")
+                else:
+                    st.caption(f"WEIGHTS_DIR env not set; using fallback directory `{MODEL_WEIGHTS_DIR}`")
+        except (FileNotFoundError, PermissionError, OSError) as _e:
+            st.caption("Weights source: (could not resolve path)")
+
+        # Reset session controls
+        st.markdown("---")
+        if st.button("↩️ Reset Session", help="Clear caches and session state, then rerun"):
+            reset_app()
 
     # Main content area
     col1, col2 = st.columns([1, 1.5], gap="large")
@@ -298,7 +338,7 @@ def main():
                         uploaded_file = StringIO(file_contents)
                         uploaded_file.name = selected_sample
                         st.success(f"✅ Loaded sample: {selected_sample}")
-                    except Exception as e:
+                    except (FileNotFoundError, IOError) as e:
                         st.error(f"Error loading sample: {e}")
             else:
                 st.info("No sample data available")
@@ -365,7 +405,7 @@ def main():
 
                     st.rerun()
 
-                except Exception as e:
+                except (ValueError, IOError) as e:
                     st.error(f"❌ Analysis failed: {str(e)}")
                     st.session_state['status_message'] = f"❌ Error: {str(e)}"
                     st.session_state['status_type'] = "error"
@@ -462,10 +502,10 @@ def main():
 
                         st.markdown("**Spectrum Statistics**")
                         st.json({
-                            "Original Length": len(x_raw),
+                            "Original Length": len(x_raw) if x_raw is not None else 0,
                             "Resampled Length": TARGET_LEN,
-                            "Wavenumber Range": f"{min(x_raw):.1f} - {max(x_raw):.1f} cm⁻¹",
-                            "Intensity Range": f"{min(y_raw):.1f} - {max(y_raw):.1f}",
+                            "Wavenumber Range": f"{min(x_raw):.1f} - {max(x_raw):.1f} cm⁻¹" if x_raw is not None else "N/A",
+                            "Intensity Range": f"{min(y_raw):.1f} - {max(y_raw):.1f}" if y_raw is not None else "N/A",
                             "Model Confidence": confidence_desc
                         })
 
@@ -506,7 +546,7 @@ def main():
                         - Environmental impact studies
                         """)
 
-                except Exception as e:
+                except (RuntimeError, ValueError) as e:
                     st.error(f"❌ Inference failed: {str(e)}")
 
             else:
