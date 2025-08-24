@@ -107,7 +107,10 @@ def load_model(model_name):
         # Load weights
         state_dict = torch.load(model_path, map_location="cpu")
         model.load_state_dict(state_dict, strict=False)
-        model.eval()
+        if model is not None:
+            model.eval()
+        else:
+            raise ValueError("Model is not loaded. Please check the model configuration or weights.")
 
         return model, True
 
@@ -205,7 +208,8 @@ def init_session_state():
     defaults = {
         'status_message': "Ready to analyze polymer spectra 🔬",
         'status_type': "info",
-        'uploaded_file': None,
+        'uploaded_file': None,  # legacy; kept for compatibility
+        'input_text': None,     # ←←← NEW: canonical store for spectrum text
         'filename': None,
         'inference_run_once': False,
         'x_raw': None,
@@ -278,36 +282,44 @@ def main():
             uploaded_file = st.file_uploader(
                 "Upload Raman spectrum (.txt)", 
                 type="txt",
-                help="Upload a text file with wavenumber and intensity columns"
+                help="Upload a text file with wavenumber and intensity columns",
+                key="upload_text"
             )
 
             if uploaded_file:
+                # Read now and persist raw text; avoid holding open buffers in session_state
+                raw = uploaded_file.read()
+                text = raw.decode("utf-8") if isinstance(raw, bytes) else raw
+                st.session_state['input_text'] = text
+                st.session_state['filename'] = uploaded_file.name
+                st.session_state['uploaded_file'] = None # avoid stale buffers
                 st.success(f"✅ Loaded: {uploaded_file.name}")
 
         with tab2:
             sample_files = get_sample_files()
             if sample_files:
                 sample_options = ["-- Select Sample --"] + [f.name for f in sample_files]
-                selected_sample = st.selectbox("Choose sample spectrum:", sample_options)
+                selected_sample = st.selectbox("Choose sample spectrum:", sample_options, key="sample_select")
 
                 if selected_sample != "-- Select Sample --":
                     selected_path = Path(SAMPLE_DATA_DIR) / selected_sample
                     try:
                         with open(selected_path, "r", encoding="utf-8") as f:
                             file_contents = f.read()
-                        uploaded_file = StringIO(file_contents)
-                        uploaded_file.name = selected_sample
+                        # Persist raw text + name; no open file handles in session_state
+                        st.session_state['input_text'] = file_contents
+                        st.session_state['filename'] = selected_sample
+                        st.session_state['uploaded_file'] = None
                         st.success(f"✅ Loaded sample: {selected_sample}")
-                    except Exception as e:
+                    except (FileNotFoundError, IOError) as e:
                         st.error(f"Error loading sample: {e}")
             else:
                 st.info("No sample data available")
 
         # Update session state
-        if uploaded_file is not None:
-            st.session_state['uploaded_file'] = uploaded_file
-            st.session_state['filename'] = uploaded_file.name
-            st.session_state['status_message'] = f"📁 File '{uploaded_file.name}' ready for analysis"
+        # If we captured text via either tab, reflect readiness in status
+        if st.session_state.get('input_text'):
+            st.session_state['status_message'] = f"📁 File '{st.session_state.get('filename', '(unnamed)')}' ready for analysis"
             st.session_state['status_type'] = "success"
 
         # Status display
@@ -325,27 +337,20 @@ def main():
         # Load model
         model, model_loaded = load_model(model_choice)
 
-        # Inference button
-        inference_ready = (
-            'uploaded_file' in st.session_state and 
-            st.session_state['uploaded_file'] is not None and
-            model is not None
-        )
+        # Ready if we have cached text and a model instance
+        inference_ready = bool(st.session_state.get('input_text')) and (model is not None)
 
         if not model_loaded:
             st.warning("⚠️ Model weights not available - using demo mode")
 
-        if st.button("▶️ Run Analysis", disabled=not inference_ready, type="primary"):
+        if st.button("▶️ Run Analysis", disabled=not inference_ready, type="primary", key="run_btn"):
             if inference_ready:
                 try:
-                    # Get file data
-                    uploaded_file = st.session_state['uploaded_file']
-                    filename = st.session_state['filename']
-
-                    # Read file content
-                    uploaded_file.seek(0)
-                    raw_data = uploaded_file.read()
-                    raw_text = raw_data.decode("utf-8") if isinstance(raw_data, bytes) else raw_data
+                    # Use persisted text + filename (works for uploads and samples)
+                    raw_text = st.session_state.get('input_text')
+                    filename = st.session_state.get('filename') or "unknown.txt"
+                    if not raw_text:
+                        raise ValueError("No input text available. Please upload or select a sample.")
 
                     # Parse spectrum
                     with st.spinner("Parsing spectrum data..."):
@@ -386,7 +391,7 @@ def main():
                 # Create and display plot
                 try:
                     spectrum_plot = create_spectrum_plot(x_raw, y_raw, y_resampled)
-                    st.image(spectrum_plot, caption="Spectrum Preprocessing Results", use_column_width=True)
+                    st.image(spectrum_plot, caption="Spectrum Preprocessing Results", use_container_width=True)
                 except Exception as e:
                     st.warning(f"Could not generate plot: {e}")
 
@@ -462,10 +467,10 @@ def main():
 
                         st.markdown("**Spectrum Statistics**")
                         st.json({
-                            "Original Length": len(x_raw),
+                            "Original Length": len(x_raw) if x_raw is not None else 0,
                             "Resampled Length": TARGET_LEN,
-                            "Wavenumber Range": f"{min(x_raw):.1f} - {max(x_raw):.1f} cm⁻¹",
-                            "Intensity Range": f"{min(y_raw):.1f} - {max(y_raw):.1f}",
+                            "Wavenumber Range": f"{min(x_raw):.1f} - {max(x_raw):.1f} cm⁻¹" if x_raw is not None else "N/A",
+                            "Intensity Range": f"{min(y_raw):.1f} - {max(y_raw):.1f}" if y_raw is not None else "N/A",
                             "Model Confidence": confidence_desc
                         })
 
