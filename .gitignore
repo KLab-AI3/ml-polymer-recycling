@@ -1,8 +1,6 @@
 # Ignore raw data and system clutter
 
-data
 datasets/
-depracated_scripts/
 __pycache__/
 *.pyc
 .DS_store
@@ -12,43 +10,15 @@ __pycache__/
 *.env
 *.yml
 *.json
-environment.yml
-test_env/
-_frozen_reference.txt
-
-_venv_docker_test/
-
 .streamlit
-logs/
-docs/scope_maintenance_log.yaml
-depracated_script/ftir_cv_diagnostics_run1.json
-depracated_script/ftir_cv_diagnostics.json
-depracated_script/ftir_model.pth
-depracated_script/plot_ftir_sample.py
-depracated_script/preprocess_ftir_legacy.py
-depracated_script/preprocess_ftir.py
-depracated_script/train_ftir_model_cv.py
-depracated_script/train_ftir_model.py
-depracated_script/train_model.py
-depracated_script/cnn_model.py
-models/cnn_model.py
-outputs\inference\test_prediction.json
-outputs\figure2_model.pth
-outputs\resnet_model.pth
-outputs\saliency
-outputs/plots/04_raman_diagnostics.ipynb
-outputs/figure2_model.pth
-outputs/inference/test_prediction.json
+outputs/logs/
 docs/PROJECT_REPORT.md
 wea-*.txt
 sta-*.txt
-scripts/generate_saliency.py
-scripts/compare_samples.py
+
 # --- Data (keep folder, ignore files) ---
 datasets/**
 !datasets/.gitkeep
 !datasets/.README.md
 # ---------------------------------------
-outputs/resnet18vision_model.pth
-requirements_0.txt
-requirements.txt
+
