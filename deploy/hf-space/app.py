@@ -114,7 +114,7 @@ def load_model(model_name):
 
         return model, True
 
-    except (FileNotFoundError, ValueError, RuntimeError) as e:
+    except Exception as e:
         st.error(f"❌ Error loading model {model_name}: {str(e)}")
         return None, False
 
@@ -208,7 +208,8 @@ def init_session_state():
     defaults = {
         'status_message': "Ready to analyze polymer spectra 🔬",
         'status_type': "info",
-        'uploaded_file': None,
+        'uploaded_file': None,  # legacy; kept for compatibility
+        'input_text': None,     # ←←← NEW: canonical store for spectrum text
         'filename': None,
         'inference_run_once': False,
         'x_raw': None,
@@ -219,20 +220,6 @@ def init_session_state():
     for key, default_value in defaults.items():
         if key not in st.session_state:
             st.session_state[key] = default_value
-
-def reset_app():
-    """Hard reset: clear cache and session state, then rerun."""
-    try:
-        st.cache_resource.clear()
-    except RuntimeError:
-        pass
-    try:
-        st.cache_data.clear()
-    except Exception:
-        pass
-    for k in list(st.session_state.keys()):
-        del st.session_state[k]
-    st.rerun()
 
 # Main app
 def main():
@@ -246,10 +233,11 @@ def main():
     with st.sidebar:
         st.header("ℹ️ About This App")
         st.markdown("""
+        **AIRE 2025 Internship Project**  
         AI-Driven Polymer Aging Prediction and Classification
         
-        🎯 **Purpose**: Classify polymer degradation using ML  
-        📊 **Input**: Raman/FTIR spectroscopy data  
+        🎯 **Purpose**: Classify polymer degradation using AI  
+        📊 **Input**: Raman spectroscopy data  
         🧠 **Models**: CNN architectures for binary classification  
         
         **Team**: 
@@ -279,30 +267,6 @@ def main():
         - **F1 Score**: `{config['f1']}`
         """)
 
-        # Weights source indicator (resolved path + existence + size)
-        try:
-            resolved_path = os.path.abspath(config["path"])
-            exists = os.path.exists(resolved_path)
-            size_mb = (os.path.getsize(resolved_path) / (1024 * 1024)) if exists else None
-            env_src = os.getenv("WEIGHTS_DIR")
-            with st.expander("Weights source", expanded=False):
-                st.code(resolved_path, language="bash")
-                st.write(
-                    ("✅ **Found**" + (f" • {size_mb:.2f} MB" if size_mb is not None else ""))
-                    if exists else "⚠️ **Missing**"
-                )
-                if env_src:
-                    st.caption(f"WEIGHTS_DIR env: `{env_src}`")
-                else:
-                    st.caption(f"WEIGHTS_DIR env not set; using fallback directory `{MODEL_WEIGHTS_DIR}`")
-        except (FileNotFoundError, PermissionError, OSError) as _e:
-            st.caption("Weights source: (could not resolve path)")
-
-        # Reset session controls
-        st.markdown("---")
-        if st.button("↩️ Reset Session", help="Clear caches and session state, then rerun"):
-            reset_app()
-
     # Main content area
     col1, col2 = st.columns([1, 1.5], gap="large")
 
@@ -318,25 +282,34 @@ def main():
             uploaded_file = st.file_uploader(
                 "Upload Raman spectrum (.txt)", 
                 type="txt",
-                help="Upload a text file with wavenumber and intensity columns"
+                help="Upload a text file with wavenumber and intensity columns",
+                key="upload_text"
             )
 
             if uploaded_file:
+                # Read now and persist raw text; avoid holding open buffers in session_state
+                raw = uploaded_file.read()
+                text = raw.decode("utf-8") if isinstance(raw, bytes) else raw
+                st.session_state['input_text'] = text
+                st.session_state['filename'] = uploaded_file.name
+                st.session_state['uploaded_file'] = None # avoid stale buffers
                 st.success(f"✅ Loaded: {uploaded_file.name}")
 
         with tab2:
             sample_files = get_sample_files()
             if sample_files:
                 sample_options = ["-- Select Sample --"] + [f.name for f in sample_files]
-                selected_sample = st.selectbox("Choose sample spectrum:", sample_options)
+                selected_sample = st.selectbox("Choose sample spectrum:", sample_options, key="sample_select")
 
                 if selected_sample != "-- Select Sample --":
                     selected_path = Path(SAMPLE_DATA_DIR) / selected_sample
                     try:
                         with open(selected_path, "r", encoding="utf-8") as f:
                             file_contents = f.read()
-                        uploaded_file = StringIO(file_contents)
-                        uploaded_file.name = selected_sample
+                        # Persist raw text + name; no open file handles in session_state
+                        st.session_state['input_text'] = file_contents
+                        st.session_state['filename'] = selected_sample
+                        st.session_state['uploaded_file'] = None
                         st.success(f"✅ Loaded sample: {selected_sample}")
                     except (FileNotFoundError, IOError) as e:
                         st.error(f"Error loading sample: {e}")
@@ -344,10 +317,9 @@ def main():
                 st.info("No sample data available")
 
         # Update session state
-        if uploaded_file is not None:
-            st.session_state['uploaded_file'] = uploaded_file
-            st.session_state['filename'] = uploaded_file.name
-            st.session_state['status_message'] = f"📁 File '{uploaded_file.name}' ready for analysis"
+        # If we captured text via either tab, reflect readiness in status
+        if st.session_state.get('input_text'):
+            st.session_state['status_message'] = f"📁 File '{st.session_state.get('filename', '(unnamed)')}' ready for analysis"
             st.session_state['status_type'] = "success"
 
         # Status display
@@ -365,27 +337,20 @@ def main():
         # Load model
         model, model_loaded = load_model(model_choice)
 
-        # Inference button
-        inference_ready = (
-            'uploaded_file' in st.session_state and 
-            st.session_state['uploaded_file'] is not None and
-            model is not None
-        )
+        # Ready if we have cached text and a model instance
+        inference_ready = bool(st.session_state.get('input_text')) and (model is not None)
 
         if not model_loaded:
             st.warning("⚠️ Model weights not available - using demo mode")
 
-        if st.button("▶️ Run Analysis", disabled=not inference_ready, type="primary"):
+        if st.button("▶️ Run Analysis", disabled=not inference_ready, type="primary", key="run_btn"):
             if inference_ready:
                 try:
-                    # Get file data
-                    uploaded_file = st.session_state['uploaded_file']
-                    filename = st.session_state['filename']
-
-                    # Read file content
-                    uploaded_file.seek(0)
-                    raw_data = uploaded_file.read()
-                    raw_text = raw_data.decode("utf-8") if isinstance(raw_data, bytes) else raw_data
+                    # Use persisted text + filename (works for uploads and samples)
+                    raw_text = st.session_state.get('input_text')
+                    filename = st.session_state.get('filename') or "unknown.txt"
+                    if not raw_text:
+                        raise ValueError("No input text available. Please upload or select a sample.")
 
                     # Parse spectrum
                     with st.spinner("Parsing spectrum data..."):
@@ -405,7 +370,7 @@ def main():
 
                     st.rerun()
 
-                except (ValueError, IOError) as e:
+                except Exception as e:
                     st.error(f"❌ Analysis failed: {str(e)}")
                     st.session_state['status_message'] = f"❌ Error: {str(e)}"
                     st.session_state['status_type'] = "error"
@@ -426,7 +391,7 @@ def main():
                 # Create and display plot
                 try:
                     spectrum_plot = create_spectrum_plot(x_raw, y_raw, y_resampled)
-                    st.image(spectrum_plot, caption="Spectrum Preprocessing Results", use_column_width=True)
+                    st.image(spectrum_plot, caption="Spectrum Preprocessing Results", use_container_width=True)
                 except Exception as e:
                     st.warning(f"Could not generate plot: {e}")
 
@@ -546,7 +511,7 @@ def main():
                         - Environmental impact studies
                         """)
 
-                except (RuntimeError, ValueError) as e:
+                except Exception as e:
                     st.error(f"❌ Inference failed: {str(e)}")
 
             else:
