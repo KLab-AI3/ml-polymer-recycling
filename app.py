@@ -5,11 +5,11 @@ This is an adapted version of the Streamlit app optimized for Hugging Face Space
 It maintains all the functionality of the original app while being self-contained and cloud-ready.
 """
 
-BUILD_LABEL = "proof-2025-08-24-01"
-import os, streamlit as st, sys
-st.sidebar.caption(
-    f"Build: {BUILD_LABEL} | __file__: {__file__} | cwd: {os.getcwd()} | py: {sys.version.split()[0]}"
-)
+# BUILD_LABEL = "proof-2025-08-24-01"
+# import os, streamlit as st, sys
+# st.sidebar.caption(
+#     f"Build: {BUILD_LABEL} | __file__: {__file__} | cwd: {os.getcwd()} | py: {sys.version.split()[0]}"
+# )
 
 import os
 import sys
@@ -329,29 +329,36 @@ def main():
     # Sidebar
     with st.sidebar:
         st.header("ℹ️ About This App")
-        st.markdown("""
-        **AIRE 2025 Internship Project**  
+        st.sidebar.markdown("""
         AI-Driven Polymer Aging Prediction and Classification
-        
+
         🎯 **Purpose**: Classify polymer degradation using AI  
-        📊 **Input**: Raman spectroscopy data  
+        📊 **Input**: Raman spectroscopy `.txt` files  
         🧠 **Models**: CNN architectures for binary classification  
-        
-        **Team**: 
-        - **Mentor**: Dr. Sanmukh Kuppannagari
-        - **Mentor**: Dr. Metin Karailyan
-        - **Author**: Jaser Hasan 
-        
-        🔗 [GitHub Repository](https://github.com/KLab-AI3/ml-polymer-recycling)
-        
-        📝 **Model Credit**: Baseline model inspired by *Figure 2 CNN* from:
+        💾 **Current**: Figure2CNN (baseline)  
+        📈 **Next**: More trained CNNs in evaluation pipeline
 
-        > Neo, E.R.K., Low, J.S.C., Goodship, V., Debattista, K. (2023).  
-        > *Deep learning for chemometric analysis of plastic spectral data from infrared and Raman databases*.  
-        > *Resources, Conservation & Recycling*, **188**, 106718.  
+        ---
 
+        **Team**  
+        👨‍🏫 Dr. Sanmukh Kuppannagari (Mentor)  
+        👨‍🏫 Dr. Metin Karailyan (Mentor)  
+        👨‍💻 Jaser Hasan (Author)
+
+        ---
+
+        **Links**  
+        🔗 [Live HF Space](https://huggingface.co/spaces/dev-jas/polymer-aging-ml)  
+        📂 [GitHub Repository](https://github.com/KLab-AI3/ml-polymer-recycling)
+
+        ---
+
+        **Model Credit**  
+        Baseline model inspired by *Figure 2 CNN* from:  
+        Neo, E.R.K., Low, J.S.C., Goodship, V., Debattista, K. (2023).  
+        *Deep learning for chemometric analysis of plastic spectral data from infrared and Raman databases*.  
+        _Resources, Conservation & Recycling_, **188**, 106718.  
         [https://doi.org/10.1016/j.resconrec.2022.106718](https://doi.org/10.1016/j.resconrec.2022.106718)
-
         """)
 
         st.markdown("---")
