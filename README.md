@@ -2,7 +2,7 @@
 title: AI Polymer Classification
 emoji: 🔬
 colorFrom: indigo
-colorTo: teal
+colorTo: yellow
 sdk: streamlit
 app_file: app.py
 pinned: false
