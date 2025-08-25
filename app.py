@@ -53,7 +53,7 @@ st.markdown("""
 
 # Constants
 TARGET_LEN = 500
-SAMPLE_DATA_DIR = "sample_data"
+SAMPLE_DATA_DIR = Path("sample_data")
 # Prefer env var, else 'model_weights' if present; else canonical 'outputs'
 MODEL_WEIGHTS_DIR = (
     os.getenv("WEIGHTS_DIR")
@@ -329,8 +329,6 @@ def on_input_mode_change():
         st.session_state["sample_select"] = "-- Select Sample --"
     # 🔧 Reset when switching modes to prevent stale right-column visuals
     reset_results("Switched input mode")
-    # Also clear te previous upload widget value to avoid confusion
-    st.session_state["upload_txt"] = None
 
 
 def on_model_change():
@@ -348,7 +346,7 @@ def reset_results(reason: str = ""):
     st.session_state["log_messages"] = []
     # ||== Always reset the status box ==||
     st.session_state["status_message"] = (
-        f"{reason} Ready to analyze"
+        f"ℹ️ {reason}"
         if reason else "Ready to analyze polymer spectra 🔬"
     )
     st.session_state["status_type"] = "info"
