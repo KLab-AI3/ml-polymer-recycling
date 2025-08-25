@@ -409,7 +409,7 @@ def main():
         model_labels = [
             f"{MODEL_CONFIG[name]['emoji']} {name}" for name in MODEL_CONFIG.keys()]
         selected_label = st.selectbox("Choose AI model:", model_labels,
-                                    key="model_select", on_change=on_model_change)
+                                      key="model_select", on_change=on_model_change)
         model_choice = selected_label.split(" ", 1)[1]
 
         # Model info
