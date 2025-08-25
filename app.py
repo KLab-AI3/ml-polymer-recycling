@@ -1,16 +1,22 @@
-"""
-AI-Driven Polymer Aging Prediction and Classification
-Hugging Face Spaces Deployment
-This is an adapted version of the Streamlit app optimized for Hugging Face Spaces deployment.
-It maintains all the functionality of the original app while being self-contained and cloud-ready.
-"""
-
 # BUILD_LABEL = "proof-2025-08-24-01"
 # import os, streamlit as st, sys
 # st.sidebar.caption(
 #     f"Build: {BUILD_LABEL} | __file__: {__file__} | cwd: {os.getcwd()} | py: {sys.version.split()[0]}"
 # )
 
+from models.resnet_cnn import ResNet1D
+from models.figure2_cnn import Figure2CNN
+import logging
+import hashlib
+import gc
+import time
+import io
+from PIL import Image
+import matplotlib.pyplot as plt
+import matplotlib
+import numpy as np
+import torch
+import streamlit as st
 import os
 import sys
 from pathlib import Path
@@ -19,23 +25,9 @@ from pathlib import Path
 utils_path = Path(__file__).resolve().parent / "utils"
 if utils_path.is_dir() and str(utils_path) not in sys.path:
     sys.path.append(str(utils_path))
-import streamlit as st
-import torch
-import numpy as np
-import matplotlib
-matplotlib.use("Agg") # ensure headless rendering in Spaces
-import matplotlib.pyplot as plt
-from PIL import Image
-import io
-from pathlib import Path
-import time
-import gc
-import hashlib
-import logging
+matplotlib.use("Agg")  # ensure headless rendering in Spaces
 
 # Import local modules
-from models.figure2_cnn import Figure2CNN
-from models.resnet_cnn import ResNet1D
 # Prefer canonical script; fallback to local utils for HF hard-copy scenario
 try:
     from scripts.preprocess_dataset import resample_spectrum
@@ -81,7 +73,7 @@ MODEL_CONFIG = {
     "ResNet1D (Advanced)": {
         "class": ResNet1D,
         "path": f"{MODEL_WEIGHTS_DIR}/resnet_model.pth",
-        "emoji": "🧠", 
+        "emoji": "🧠",
         "description": "Residual CNN with deeper feature learning",
         "accuracy": "96.20%",
         "f1": "95.90%"
@@ -91,7 +83,8 @@ MODEL_CONFIG = {
 # Label mapping
 LABEL_MAP = {0: "Stable (Unweathered)", 1: "Weathered (Degraded)"}
 
-# Utility functions
+
+# ||======= UTILITY FUNCTIONS  =======||
 def label_file(filename: str) -> int:
     """Extract label from filename based on naming convention"""
     name = Path(filename).name.lower()
@@ -103,14 +96,16 @@ def label_file(filename: str) -> int:
         # Return None for unknown patterns instead of raising error
         return -1  # Default value for unknown patterns
 
+
 @st.cache_data
 def load_state_dict(_mtime, model_path):
     """Load state dict with mtime in cache key to detect file changes"""
     try:
         return torch.load(model_path, map_location="cpu")
-    except Exception as e:
+    except (FileNotFoundError, torch.TorchError) as e:
         st.warning(f"Error loading state dict: {e}")
         return None
+
 
 @st.cache_resource
 def load_model(model_name):
@@ -136,20 +131,24 @@ def load_model(model_name):
         state_dict = load_state_dict(mtime, model_path)
         if state_dict:
             model.load_state_dict(state_dict, strict=True)
+            if model is None:
+                raise ValueError("Model is not loaded. Please check the model configuration or weights.")
             model.eval()
             return model, True
         else:
             return model, False
 
-    except Exception as e:
+    except (FileNotFoundError, KeyError) as e:
         st.error(f"❌ Error loading model {model_name}: {str(e)}")
         return None, False
+
 
 def cleanup_memory():
     """Clean up memory after inference"""
     gc.collect()
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
+
 
 @st.cache_data
 def get_sample_files():
@@ -158,6 +157,7 @@ def get_sample_files():
     if sample_dir.exists():
         return sorted(list(sample_dir.glob("*.txt")))
     return []
+
 
 def parse_spectrum_data(raw_text):
     """Parse spectrum data from text with robust error handling and validation"""
@@ -171,7 +171,8 @@ def parse_spectrum_data(raw_text):
         try:
             # Handle different separators
             parts = line.replace(",", " ").split()
-            numbers = [p for p in parts if p.replace('.', '', 1).replace('-', '', 1).replace('+', '', 1).isdigit()]
+            numbers = [p for p in parts if p.replace('.', '', 1).replace(
+                '-', '', 1).replace('+', '', 1).isdigit()]
 
             if len(numbers) >= 2:
                 x, y = float(numbers[0]), float(numbers[1])
@@ -183,7 +184,8 @@ def parse_spectrum_data(raw_text):
             continue
 
     if len(x_vals) < 10:  # Minimum reasonable spectrum length
-        raise ValueError(f"Insufficient data points: {len(x_vals)}. Need at least 10 points.")
+        raise ValueError(
+            f"Insufficient data points: {len(x_vals)}. Need at least 10 points.")
 
     x = np.array(x_vals)
     y = np.array(y_vals)
@@ -198,13 +200,15 @@ def parse_spectrum_data(raw_text):
 
     # Check reasonable range for Raman spectroscopy
     if min(x) < 0 or max(x) > 10000 or (max(x) - min(x)) < 100:
-        raise ValueError(f"Invalid wavenumber range: {min(x)} - {max(x)}. Expected ~400-4000 cm⁻¹ with span >100")
+        raise ValueError(
+            f"Invalid wavenumber range: {min(x)} - {max(x)}. Expected ~400-4000 cm⁻¹ with span >100")
 
     return x, y
 
+
 def create_spectrum_plot(x_raw, y_raw, y_resampled):
     """Create spectrum visualization plot"""
-    fig, ax = plt.subplots(1, 2, figsize=(12, 4), dpi=100)
+    fig, ax = plt.subplots(1, 2, figsize=(13, 5), dpi=100)
 
     # Raw spectrum
     ax[0].plot(x_raw, y_raw, label="Raw", color="dimgray", linewidth=1)
@@ -214,9 +218,10 @@ def create_spectrum_plot(x_raw, y_raw, y_resampled):
     ax[0].grid(True, alpha=0.3)
     ax[0].legend()
 
-    # Resampled spectrum  
+    # Resampled spectrum
     x_resampled = np.linspace(min(x_raw), max(x_raw), TARGET_LEN)
-    ax[1].plot(x_resampled, y_resampled, label="Resampled", color="steelblue", linewidth=1)
+    ax[1].plot(x_resampled, y_resampled, label="Resampled",
+               color="steelblue", linewidth=1)
     ax[1].set_title(f"Resampled ({TARGET_LEN} points)")
     ax[1].set_xlabel("Wavenumber (cm⁻¹)")
     ax[1].set_ylabel("Intensity")
@@ -233,6 +238,7 @@ def create_spectrum_plot(x_raw, y_raw, y_resampled):
 
     return Image.open(buf)
 
+
 def get_confidence_description(logit_margin):
     """Get human-readable confidence description"""
     if logit_margin > 1000:
@@ -243,6 +249,7 @@ def get_confidence_description(logit_margin):
         return "MODERATE", "🟠"
     else:
         return "LOW", "🔴"
+
 
 def init_session_state():
     defaults = {
@@ -255,15 +262,15 @@ def init_session_state():
         "input_mode": "Upload File",   # controls which pane is visible
         "inference_run_once": False,
         "x_raw": None, "y_raw": None, "y_resampled": None,
-        "log_messages": [],  
+        "log_messages": [],
     }
     for k, v in defaults.items():
         st.session_state.setdefault(k, v)
 
-
     for key, default_value in defaults.items():
         if key not in st.session_state:
             st.session_state[key] = default_value
+
 
 def log_message(msg: str):
     """Append a timestamped line to the in-app log, creating the buffer if needed."""
@@ -273,9 +280,11 @@ def log_message(msg: str):
         f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] {msg}"
     )
 
+
 def trigger_run():
     """Set a flag so we can detect button press reliably across reruns"""
     st.session_state['run_requested'] = True
+
 
 def on_upload_change():
     """Read uploaded file once and persist as text."""
@@ -290,6 +299,7 @@ def on_upload_change():
     st.session_state["status_message"] = f"📁 File '{st.session_state['filename']}' ready for analysis"
     st.session_state["status_type"] = "success"
 
+
 def on_sample_change():
     """Read selected sample once and persist as text."""
     sel = st.session_state.get("sample_select", "-- Select Sample --")
@@ -303,14 +313,30 @@ def on_sample_change():
         st.session_state["input_source"] = "sample"
         st.session_state["status_message"] = f"📁 Sample '{sel}' ready for analysis"
         st.session_state["status_type"] = "success"
-    except Exception as e:
+    except (FileNotFoundError, IOError) as e:
         st.session_state["status_message"] = f"❌ Error loading sample: {e}"
         st.session_state["status_type"] = "error"
 
+
 def on_input_mode_change():
+    """reset sample when switching to Upload"""
     if st.session_state["input_mode"] == "Upload File":
-        # reset sample when switching to Upload
         st.session_state["sample_select"] = "-- Select Sample --"
+
+def reset_results(reason: str = ""):
+    """Clear previous inference artifacts so the right column returns to initial state."""
+    st.session_state["inference_run_once"] = False
+    st.session_state["x_raw"] = None
+    st.session_state["y_raw"] = None
+    st.session_state["y_resampled"] = None
+    # ||== Clear logs between runs ==||
+    st.session_state["log_messages"] = []
+    # ||== Always reset the status box ==||
+    st.session_state["status_message"] = (
+        f"{reason} Ready to analyze"
+        if reason else "Ready to analyze polymer spectra 🔬"
+    )
+    st.session_state["status_type"] = "info"
 
 
 # Main app
@@ -318,7 +344,8 @@ def main():
     init_session_state()
     # Header
     st.title("🔬 AI-Driven Polymer Classification")
-    st.markdown("**Predict polymer degradation states using Raman spectroscopy and deep learning**")
+    st.markdown(
+        "**Predict polymer degradation states using Raman spectroscopy and deep learning**")
     st.info(
         "⚠️ **Prototype Notice:** v0.1 Raman-only. "
         "Multi-model CNN evaluation in progress. "
@@ -366,7 +393,8 @@ def main():
 
         # Model selection
         st.subheader("🧠 Model Selection")
-        model_labels = [f"{MODEL_CONFIG[name]['emoji']} {name}" for name in MODEL_CONFIG.keys()]
+        model_labels = [
+            f"{MODEL_CONFIG[name]['emoji']} {name}" for name in MODEL_CONFIG.keys()]
         selected_label = st.selectbox("Choose AI model:", model_labels)
         model_choice = selected_label.split(" ", 1)[1]
 
@@ -411,7 +439,8 @@ def main():
         else:
             sample_files = get_sample_files()
             if sample_files:
-                options = ["-- Select Sample --"] + [p.name for p in sample_files]
+                options = ["-- Select Sample --"] + \
+                    [p.name for p in sample_files]
                 sel = st.selectbox(
                     "Choose sample spectrum:",
                     options,
@@ -440,7 +469,8 @@ def main():
             st.warning("⚠️ Model weights not available - using demo mode")
 
         # Ready to run if we have text and a model
-        inference_ready = bool(st.session_state.get("input_text")) and (model is not None)
+        inference_ready = bool(st.session_state.get(
+            "input_text")) and (model is not None)
 
         # ---- Run Analysis (form submit batches state + submit atomically) ----
         with st.form("analysis_form", clear_on_submit=False):
@@ -473,11 +503,10 @@ def main():
 
                 st.rerun()
 
-            except Exception as e:
+            except (ValueError, TypeError) as e:
                 st.error(f"❌ Analysis failed: {e}")
                 st.session_state["status_message"] = f"❌ Error: {e}"
                 st.session_state["status_type"] = "error"
-
 
     # Results column
     with col2:
@@ -494,8 +523,10 @@ def main():
 
                 # Create and display plot
                 try:
-                    spectrum_plot = create_spectrum_plot(x_raw, y_raw, y_resampled)
-                    st.image(spectrum_plot, caption="Spectrum Preprocessing Results", use_container_width=True)
+                    spectrum_plot = create_spectrum_plot(
+                        x_raw, y_raw, y_resampled)
+                    st.image(
+                        spectrum_plot, caption="Spectrum Preprocessing Results", use_container_width=True)
                 except Exception as e:
                     st.warning(f"Could not generate plot: {e}")
                     log_message(f"Plot generation error: {e}")
@@ -506,33 +537,40 @@ def main():
                         start_time = time.time()
 
                         # Prepare input tensor
-                        input_tensor = torch.tensor(y_resampled, dtype=torch.float32).unsqueeze(0).unsqueeze(0)
+                        input_tensor = torch.tensor(
+                            y_resampled, dtype=torch.float32).unsqueeze(0).unsqueeze(0)
 
                         # Run inference
                         model.eval()
                         with torch.no_grad():
                             if model is None:
-                                raise ValueError("Model is not loaded. Please check the model configuration or weights.")
+                                raise ValueError(
+                                    "Model is not loaded. Please check the model configuration or weights.")
                             logits = model(input_tensor)
                             prediction = torch.argmax(logits, dim=1).item()
                             logits_list = logits.detach().numpy().tolist()[0]
 
                         inference_time = time.time() - start_time
-                        log_message(f"Inference completed in {inference_time:.2f}s, prediction: {prediction}")
+                        log_message(
+                            f"Inference completed in {inference_time:.2f}s, prediction: {prediction}")
 
                         # Clean up memory
                         cleanup_memory()
 
                     # Get ground truth if available
                     true_label_idx = label_file(filename)
-                    true_label_str = LABEL_MAP.get(true_label_idx, "Unknown") if true_label_idx is not None else "Unknown"
+                    true_label_str = LABEL_MAP.get(
+                        true_label_idx, "Unknown") if true_label_idx is not None else "Unknown"
 
                     # Get prediction
-                    predicted_class = LABEL_MAP.get(int(prediction), f"Class {int(prediction)}")
+                    predicted_class = LABEL_MAP.get(
+                        int(prediction), f"Class {int(prediction)}")
 
                     # Calculate confidence metrics
-                    logit_margin = abs(logits_list[0] - logits_list[1]) if len(logits_list) >= 2 else 0
-                    confidence_desc, confidence_emoji = get_confidence_description(logit_margin)
+                    logit_margin = abs(
+                        logits_list[0] - logits_list[1]) if len(logits_list) >= 2 else 0
+                    confidence_desc, confidence_emoji = get_confidence_description(
+                        logit_margin)
 
                     # Display results
                     st.markdown("### 🎯 Prediction Results")
@@ -551,19 +589,24 @@ def main():
                         st.warning(f"🟡 **Prediction**: {predicted_class}")
 
                     # Confidence
-                    st.markdown(f"**{confidence_emoji} Confidence**: {confidence_desc} (margin: {logit_margin:.1f})")
+                    st.markdown(
+                        f"**{confidence_emoji} Confidence**: {confidence_desc} (margin: {logit_margin:.1f})")
 
                     # Ground truth comparison
                     if true_label_idx is not None:
                         if predicted_class == true_label_str:
-                            st.success(f"✅ **Ground Truth**: {true_label_str} - **Correct!**")
+                            st.success(
+                                f"✅ **Ground Truth**: {true_label_str} - **Correct!**")
                         else:
-                            st.error(f"❌ **Ground Truth**: {true_label_str} - **Incorrect**")
+                            st.error(
+                                f"❌ **Ground Truth**: {true_label_str} - **Incorrect**")
                     else:
-                        st.info("ℹ️ **Ground Truth**: Unknown (filename doesn't follow naming convention)")
+                        st.info(
+                            "ℹ️ **Ground Truth**: Unknown (filename doesn't follow naming convention)")
 
                     # Detailed results tabs
-                    tab1, tab2, tab3 = st.tabs(["📊 Details", "🔬 Technical", "📘 Explanation"])
+                    tab1, tab2, tab3 = st.tabs(
+                        ["📊 Details", "🔬 Technical", "📘 Explanation"])
 
                     with tab1:
                         st.markdown("**Model Output (Logits)**")
@@ -583,8 +626,10 @@ def main():
                     with tab2:
                         st.markdown("**Technical Information**")
                         model_path = MODEL_CONFIG[model_choice]["path"]
-                        mtime = os.path.getmtime(model_path) if os.path.exists(model_path) else "N/A"
-                        file_hash = hashlib.md5(open(model_path, 'rb').read()).hexdigest() if os.path.exists(model_path) else "N/A"
+                        mtime = os.path.getmtime(model_path) if os.path.exists(
+                            model_path) else "N/A"
+                        file_hash = hashlib.md5(open(model_path, 'rb').read(
+                        )).hexdigest() if os.path.exists(model_path) else "N/A"
                         st.json({
                             "Model Architecture": model_choice,
                             "Model Path": model_path,
@@ -598,11 +643,13 @@ def main():
                         })
 
                         if not model_loaded:
-                            st.warning("⚠️ Demo mode: Using randomly initialized weights")
+                            st.warning(
+                                "⚠️ Demo mode: Using randomly initialized weights")
 
                         # Debug log
                         st.markdown("**Debug Log**")
-                        st.text_area("Logs", "\n".join(st.session_state.get("log_messages", [])), height=200)
+                        st.text_area("Logs", "\n".join(
+                            st.session_state.get("log_messages", [])), height=200)
 
                     with tab3:
                         st.markdown("""
@@ -627,12 +674,13 @@ def main():
                         - Environmental impact studies
                         """)
 
-                except Exception as e:
+                except (ValueError, RuntimeError) as e:
                     st.error(f"❌ Inference failed: {str(e)}")
                     log_message(f"Inference error: {str(e)}")
 
             else:
-                st.error("❌ Missing spectrum data. Please upload a file and run analysis.")
+                st.error(
+                    "❌ Missing spectrum data. Please upload a file and run analysis.")
         else:
             # Welcome message
             st.markdown("""
@@ -654,6 +702,7 @@ def main():
             - 🌱 Sustainability impact studies
             - 🏭 Quality control in manufacturing
             """)
+
 
 # Run the application
 main()
