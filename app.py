@@ -255,6 +255,7 @@ def init_session_state():
         "input_mode": "Upload File",   # controls which pane is visible
         "inference_run_once": False,
         "x_raw": None, "y_raw": None, "y_resampled": None,
+        "log_messages": [],  
     }
     for k, v in defaults.items():
         st.session_state.setdefault(k, v)
@@ -264,9 +265,13 @@ def init_session_state():
         if key not in st.session_state:
             st.session_state[key] = default_value
 
-def log_message(msg):
-    """Log message for observability"""
-    st.session_state['log_messages'].append(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] {msg}")
+def log_message(msg: str):
+    """Append a timestamped line to the in-app log, creating the buffer if needed."""
+    if "log_messages" not in st.session_state or st.session_state["log_messages"] is None:
+        st.session_state["log_messages"] = []
+    st.session_state["log_messages"].append(
+        f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] {msg}"
+    )
 
 def trigger_run():
     """Set a flag so we can detect button press reliably across reruns"""
@@ -574,7 +579,7 @@ def main():
 
                         # Debug log
                         st.markdown("**Debug Log**")
-                        st.text_area("Logs", "\n".join(st.session_state['log_messages']), height=200)
+                        st.text_area("Logs", "\n".join(st.session_state.get("log_messages", [])), height=200)
 
                     with tab3:
                         st.markdown("""
