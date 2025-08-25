@@ -355,9 +355,10 @@ def main():
 
         **Model Credit**  
         Baseline model inspired by *Figure 2 CNN* from:  
-        Neo, E.R.K., Low, J.S.C., Goodship, V., Debattista, K. (2023).  
-        *Deep learning for chemometric analysis of plastic spectral data from infrared and Raman databases*.  
-        _Resources, Conservation & Recycling_, **188**, 106718.  
+        > Neo, E.R.K., Low, J.S.C., Goodship, V., Debattista, K. (2023).  
+        > *Deep learning for chemometric analysis of plastic spectral data from infrared and Raman databases*.  
+        > _Resources, Conservation & Recycling_, **188**, 106718.
+
         [https://doi.org/10.1016/j.resconrec.2022.106718](https://doi.org/10.1016/j.resconrec.2022.106718)
         """)
 
