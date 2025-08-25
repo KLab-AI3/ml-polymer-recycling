@@ -319,6 +319,12 @@ def main():
     # Header
     st.title("🔬 AI-Driven Polymer Classification")
     st.markdown("**Predict polymer degradation states using Raman spectroscopy and deep learning**")
+    st.info(
+        "⚠️ **Prototype Notice:** v0.1 Raman-only. "
+        "Multi-model CNN evaluation in progress. "
+        "FTIR support planned.",
+        icon="⚡"
+    )
 
     # Sidebar
     with st.sidebar:
@@ -337,6 +343,15 @@ def main():
         - **Author**: Jaser Hasan 
         
         🔗 [GitHub Repository](https://github.com/KLab-AI3/ml-polymer-recycling)
+        
+        📝 **Model Credit**: Baseline model inspired by *Figure 2 CNN* from:
+
+        > Neo, E.R.K., Low, J.S.C., Goodship, V., Debattista, K. (2023).  
+        > *Deep learning for chemometric analysis of plastic spectral data from infrared and Raman databases*.  
+        > *Resources, Conservation & Recycling*, **188**, 106718.  
+
+        [https://doi.org/10.1016/j.resconrec.2022.106718](https://doi.org/10.1016/j.resconrec.2022.106718)
+
         """)
 
         st.markdown("---")
