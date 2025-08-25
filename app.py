@@ -132,7 +132,8 @@ def load_model(model_name):
         if state_dict:
             model.load_state_dict(state_dict, strict=True)
             if model is None:
-                raise ValueError("Model is not loaded. Please check the model configuration or weights.")
+                raise ValueError(
+                    "Model is not loaded. Please check the model configuration or weights.")
             model.eval()
             return model, True
         else:
@@ -296,6 +297,9 @@ def on_upload_change():
     st.session_state["input_text"] = text
     st.session_state["filename"] = getattr(up, "name", "uploaded.txt")
     st.session_state["input_source"] = "upload"
+
+    # 🔧 Clear previous results so the right column resets immediately
+    reset_results("New file selected")
     st.session_state["status_message"] = f"📁 File '{st.session_state['filename']}' ready for analysis"
     st.session_state["status_type"] = "success"
 
@@ -304,13 +308,14 @@ def on_sample_change():
     """Read selected sample once and persist as text."""
     sel = st.session_state.get("sample_select", "-- Select Sample --")
     if sel == "-- Select Sample --":
-        # Do nothing; leave current input intact (prevents clobbering uploads)
         return
     try:
-        text = (Path(SAMPLE_DATA_DIR) / sel).read_text(encoding="utf-8")
+        text = (Path(SAMPLE_DATA_DIR / sel).read_text(encoding="utf-8"))
         st.session_state["input_text"] = text
         st.session_state["filename"] = sel
         st.session_state["input_source"] = "sample"
+        # 🔧 Clear previous results so right column resets immediately
+        reset_results("New sample selected")
         st.session_state["status_message"] = f"📁 Sample '{sel}' ready for analysis"
         st.session_state["status_type"] = "success"
     except (FileNotFoundError, IOError) as e:
@@ -319,9 +324,19 @@ def on_sample_change():
 
 
 def on_input_mode_change():
-    """reset sample when switching to Upload"""
+    """Reset sample when switching to Upload"""
     if st.session_state["input_mode"] == "Upload File":
         st.session_state["sample_select"] = "-- Select Sample --"
+    # 🔧 Reset when switching modes to prevent stale right-column visuals
+    reset_results("Switched input mode")
+    # Also clear te previous upload widget value to avoid confusion
+    st.session_state["upload_txt"] = None
+
+
+def on_model_change():
+    """Force the right column back to init state when the model changes"""
+    reset_results("Model changed")
+
 
 def reset_results(reason: str = ""):
     """Clear previous inference artifacts so the right column returns to initial state."""
@@ -395,7 +410,8 @@ def main():
         st.subheader("🧠 Model Selection")
         model_labels = [
             f"{MODEL_CONFIG[name]['emoji']} {name}" for name in MODEL_CONFIG.keys()]
-        selected_label = st.selectbox("Choose AI model:", model_labels)
+        selected_label = st.selectbox("Choose AI model:", model_labels,
+                                    key="model_select", on_change=on_model_change)
         model_choice = selected_label.split(" ", 1)[1]
 
         # Model info
