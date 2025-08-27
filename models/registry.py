@@ -21,4 +21,15 @@ def build(name: str, input_length: int):
         raise ValueError(f"Unknown model '{name}'. Choices: {choices()}")
     return _REGISTRY[name](input_length)
 
+def spec(name: str):
+    """Return expected input length and number of classes for a model key."""
+    if name == "figure2":
+        return {"input_length": 500, "num_classes": 2}
+    if name == "resnet":
+        return {"input_length": 500, "num_classes": 2}
+    if name == "resnet18vision":
+        return {"input_length": 500, "num_classes": 2}
+    raise KeyError(f"Unknown model '{name}'")
+
+
 __all__ = ["choices", "build"]

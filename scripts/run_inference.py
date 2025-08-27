@@ -1,142 +1,161 @@
-import sys
+# scripts/run_inference.py
+"""
+CLI inference with preprocessing parity.
+Applies: resample → baseline (deg=2) → smooth (w=11,o=2) → normalize
+unless explicitly disabled via flags.
+
+Usage (examples):
+python scripts/run_inference.py \
+    --input datasets/rdwp/sta-1.txt \
+    --arch figure2 \
+    --weights outputs/figure2_model.pth \
+    --target-len 500
+
+# Disable smoothing only:
+python scripts/run_inference.py --input ... --arch resnet --weights ... --disable-smooth
+"""
+
 import os
+import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-from pathlib import Path
 
 import argparse
-import warnings
+import json
 import logging
+from pathlib import Path
+from typing import cast
+from torch import nn
 
 import numpy as np
 import torch
-DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+import torch.nn.functional as F
 
-from scripts.preprocess_dataset import resample_spectrum, label_file
-from models.registry import choices as model_choices, build as build_model
-
-
-
-# =============================================
-# ✅ Raman-Only Inference Script
-# This script supports prediction on a single Raman spectrum (.txt file).
-# FTIR inference has been deprecated and removed for scientific integrity.
-# See: @raman-pipeline-focus-milestone
-# =============================================
+from models.registry import build, choices
+from utils.preprocessing import preprocess_spectrum, TARGET_LENGTH
+from scripts.plot_spectrum import load_spectrum
+from scripts.discover_raman_files import label_file
 
 
-warnings.filterwarnings(
-    "ignore",
-    message=".*weights_only=False.*",
-    category=FutureWarning
-)
+def parse_args():
+    p = argparse.ArgumentParser(description="Raman spectrum inference (parity with CLI preprocessing).")
+    p.add_argument("--input", required=True, help="Path to a single Raman .txt file (2 columns: x, y).")
+    p.add_argument("--arch", required=True, choices=choices(), help="Model architecture key.")
+    p.add_argument("--weights", required=True, help="Path to model weights (.pth).")
+    p.add_argument("--target-len", type=int, default=TARGET_LENGTH, help="Resample length (default: 500).")
+
+    # Default = ON; use disable- flags to turn steps off explicitly.
+    p.add_argument("--disable-baseline", action="store_true", help="Disable baseline correction.")
+    p.add_argument("--disable-smooth", action="store_true", help="Disable Savitzky–Golay smoothing.")
+    p.add_argument("--disable-normalize", action="store_true", help="Disable min-max normalization.")
+
+    p.add_argument("--output", default=None, help="Optional output JSON path (defaults to outputs/inference/<name>.json).")
+    p.add_argument("--device", default="cpu", choices=["cpu", "cuda"], help="Compute device (default: cpu).")
+    return p.parse_args()
 
 
-def load_raman_spectrum(filepath):
-    """Load a 2-column Raman spectrum from a .txt file"""
-    x_vals, y_vals = [], []
-    with open(filepath, 'r', encoding='utf-8') as f:
-        for line in f:
-            parts = line.strip().split()
-            if len(parts) == 2:
-                try:
-                    x, y = float(parts[0]), float(parts[1])
-                    x_vals.append(x)
-                    y_vals.append(y)
-                except ValueError:
-                    continue
-    return np.array(x_vals), np.array(y_vals)
+def _load_state_dict_safe(path: str):
+    """Load a state dict safely across torch versions & checkpoint formats."""
+    try:
+        obj = torch.load(path, map_location="cpu", weights_only=True)  # newer torch
+    except TypeError:
+        obj = torch.load(path, map_location="cpu")  # fallback for older torch
+
+    # Accept either a plain state_dict or a checkpoint dict that contains one
+    if isinstance(obj, dict):
+        for k in ("state_dict", "model_state_dict", "model"):
+            if k in obj and isinstance(obj[k], dict):
+                obj = obj[k]
+                break
+
+    if not isinstance(obj, dict):
+        raise ValueError(
+            "Loaded object is not a state_dict or checkpoint with a state_dict. "
+            f"Type={type(obj)} from file={path}"
+        )
+
+    # Strip DataParallel 'module.' prefixes if present
+    if any(key.startswith("module.") for key in obj.keys()):
+        obj = {key.replace("module.", "", 1): val for key, val in obj.items()}
+
+    return obj
+
+
+def main():
+    logging.basicConfig(level=logging.INFO, format="INFO: %(message)s")
+    args = parse_args()
+
+    in_path = Path(args.input)
+    if not in_path.exists():
+        raise FileNotFoundError(f"Input file not found: {in_path}")
+
+    # --- Load raw spectrum
+    x_raw, y_raw = load_spectrum(str(in_path))
+    if len(x_raw) < 10:
+        raise ValueError("Input spectrum has too few points (<10).")
+
+    # --- Preprocess (single source of truth)
+    _, y_proc = preprocess_spectrum(
+        np.array(x_raw),
+        np.array(y_raw),
+        target_len=args.target_len,
+        do_baseline=not args.disable_baseline,
+        do_smooth=not args.disable_smooth,
+        do_normalize=not args.disable_normalize,
+        out_dtype="float32",
+    )
+
+    # --- Build model & load weights (safe)
+    device = torch.device(args.device if (args.device == "cuda" and torch.cuda.is_available()) else "cpu")
+    model = cast(nn.Module, build(args.arch, args.target_len)).to(device)
+    state = _load_state_dict_safe(args.weights)
+    missing, unexpected = model.load_state_dict(state, strict=False)
+    if missing or unexpected:
+        logging.info("Loaded with non-strict keys. missing=%d unexpected=%d", len(missing), len(unexpected))
+
+    model.eval()
+
+    # Shape: (B, C, L) = (1, 1, target_len)
+    x_tensor = torch.from_numpy(y_proc[None, None, :]).to(device)
+
+    with torch.no_grad():
+        logits = model(x_tensor).float().cpu()  # shape (1, num_classes)
+        probs = F.softmax(logits, dim=1)
+
+    probs_np = probs.numpy().ravel().tolist()
+    logits_np = logits.numpy().ravel().tolist()
+    pred_label = int(np.argmax(probs_np))
+
+    # Optional ground-truth from filename (if encoded)
+    true_label = label_file(str(in_path))
+
+    # --- Prepare output
+    out_dir = Path("outputs") / "inference"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    out_path = Path(args.output) if args.output else (out_dir / f"{in_path.stem}_{args.arch}.json")
+
+    result = {
+        "input_file": str(in_path),
+        "arch": args.arch,
+        "weights": str(args.weights),
+        "target_len": args.target_len,
+        "preprocessing": {
+            "baseline": not args.disable_baseline,
+            "smooth": not args.disable_smooth,
+            "normalize": not args.disable_normalize,
+        },
+        "predicted_label": pred_label,
+        "true_label": true_label,
+        "probs": probs_np,
+        "logits": logits_np,
+    }
+
+    with open(out_path, "w", encoding="utf-8") as f:
+        json.dump(result, f, indent=2)
+
+    logging.info("Predicted Label: %d  True Label: %s", pred_label, true_label)
+    logging.info("Raw Logits: %s", logits_np)
+    logging.info("Result saved to %s", out_path)
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(
-        description="Run inference on a single Raman spectrum (.txt file)."
-    )
-    parser.add_argument("--arch", type=str, default="figure2", choices=model_choices(),
-                    help="Model architecture (must match the provided weights).")  # NEW
-    parser.add_argument(
-        "--target-len", type=int, required=True,
-        help="Target length to match model input"
-    )
-    parser.add_argument(
-        "--input", required=True,
-        help="Path to Raman .txt file."
-    )
-    parser.add_argument(
-        "--model", default="random",
-        help="Path to .pth model file, or specify 'random' to use untrained weights."
-    )
-    parser.add_argument(
-        "--output", default=None,
-        help="Where to write prediction result. If omitted, prints to stdout."
-    )
-    verbosity = parser.add_mutually_exclusive_group()
-    verbosity.add_argument(
-        "--quiet", action="store_true",
-        help="Show only warnings and errors"
-    )
-    verbosity.add_argument(
-        "--verbose", action="store_true",
-        help="Show debug-level logging"
-    )
-
-    args = parser.parse_args()
-
-    # configure logging
-    level = logging.INFO
-    if args.verbose:
-        level = logging.DEBUG
-    elif args.quiet:
-        level = logging.WARNING
-    logging.basicConfig(level=level, format="%(levelname)s: %(message)s")
-
-    try:
-        # Load & preprocess Raman spectrum
-        if os.path.isdir(args.input):
-            parser.error(f"Input must be a single Raman .txt file, got a directory: {args.input}")
-
-        x_raw, y_raw = load_raman_spectrum(args.input)
-        if len(x_raw) < 10:
-            parser.error("Spectrum too short for inference.")
-
-        data = resample_spectrum(x_raw, y_raw, target_len=args.target_len)
-        # Shape = (1, 1, target_len) — valid input for Raman inference
-        input_tensor = torch.tensor(data, dtype=torch.float32).unsqueeze(0).unsqueeze(0).to(DEVICE)
-
-
-        # 2. Load Model (via shared model registry)
-        model = build_model(args.arch, args.target_len).to(DEVICE)
-        if args.model != "random":
-            state = torch.load(args.model, map_location="cpu") # broad compatibility
-            model.load_state_dict(state)
-        model.eval()
-        
-        
-
-        # 3. Inference
-        with torch.no_grad():
-            logits = model(input_tensor)
-            pred = torch.argmax(logits, dim=1).item()
-
-        # 4. True Label
-        try:
-            true_label = label_file(args.input)
-            label_str = f"True Label: {true_label}"
-        except FileNotFoundError:
-            label_str = "True Label: Unknown"
-
-        result = f"Predicted Label: {pred} {label_str}\nRaw Logits: {logits.tolist()}"
-        logging.info(result)
-
-        # 5. Save or stdout
-        if args.output:
-            # ensure parent dir exists (e.g., outputs/inference/)
-            Path(args.output).parent.mkdir(parents=True, exist_ok=True)
-            with open(args.output, "w", encoding="utf-8") as fout:
-                fout.write(result)
-            logging.info("Result saved to %s", args.output)
-
-        sys.exit(0)
-
-    except Exception as e:
-        logging.error(e)
-        sys.exit(1)
+    main()
