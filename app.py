@@ -1,9 +1,3 @@
-# BUILD_LABEL = "proof-2025-08-24-01"
-# import os, streamlit as st, sys
-# st.sidebar.caption(
-#     f"Build: {BUILD_LABEL} | __file__: {__file__} | cwd: {os.getcwd()} | py: {sys.version.split()[0]}"
-# )
-
 from models.resnet_cnn import ResNet1D
 from models.figure2_cnn import Figure2CNN
 import logging
@@ -31,8 +25,19 @@ matplotlib.use("Agg")  # ensure headless rendering in Spaces
 # Prefer canonical script; fallback to local utils for HF hard-copy scenario
 try:
     from scripts.preprocess_dataset import resample_spectrum
-except ImportError:
-    from utils.preprocessing import resample_spectrum
+except (ImportError, ModuleNotFoundError):
+    try:
+        from utils.preprocessing import resample_spectrum
+    except (ImportError, ModuleNotFoundError):
+        raise ImportError("Could not import 'resample_spectrum' from either 'scripts.preprocess_dataset' or 'utils.preprocessing'. Please ensure the function exists in one of these modules.")
+
+KEEP_KEYS = {
+    # === global UI context we want to keep after "Reset" ===
+    "model_select",     # sidebar model key
+    "input_mode",       # radio for Upload|Sample
+    "uploader_version", # version counter for file uploader
+    "input_registry",   # radio controlling Upload vs Sample
+}
 
 # Configuration
 st.set_page_config(
@@ -84,7 +89,30 @@ MODEL_CONFIG = {
 LABEL_MAP = {0: "Stable (Unweathered)", 1: "Weathered (Degraded)"}
 
 
-# ||======= UTILITY FUNCTIONS  =======||
+# === UTILITY FUNCTIONS ===
+def init_session_state():
+    defaults = {
+        "status_message": "Ready to analyze polymer spectra 🔬",
+        "status_type": "info",
+        "input_text": None,
+        "filename": None,
+        "input_source": None,     # "upload" or "sample"
+        "sample_select": "-- Select Sample --",
+        "input_mode": "Upload File",   # controls which pane is visible
+        "inference_run_once": False,
+        "x_raw": None, "y_raw": None, "y_resampled": None,
+        "log_messages": [],
+        "uploader_version": 0,
+        "current_upload_key": "upload_txt_0",
+    }
+    for k, v in defaults.items():
+        st.session_state.setdefault(k, v)
+
+    for key, default_value in defaults.items():
+        if key not in st.session_state:
+            st.session_state[key] = default_value
+
+
 def label_file(filename: str) -> int:
     """Extract label from filename based on naming convention"""
     name = Path(filename).name.lower()
@@ -102,7 +130,7 @@ def load_state_dict(_mtime, model_path):
     """Load state dict with mtime in cache key to detect file changes"""
     try:
         return torch.load(model_path, map_location="cpu")
-    except (FileNotFoundError, torch.TorchError) as e:
+    except (FileNotFoundError, RuntimeError) as e:
         st.warning(f"Error loading state dict: {e}")
         return None
 
@@ -222,7 +250,7 @@ def create_spectrum_plot(x_raw, y_raw, y_resampled):
     # Resampled spectrum
     x_resampled = np.linspace(min(x_raw), max(x_raw), TARGET_LEN)
     ax[1].plot(x_resampled, y_resampled, label="Resampled",
-               color="steelblue", linewidth=1)
+            color="steelblue", linewidth=1)
     ax[1].set_title(f"Resampled ({TARGET_LEN} points)")
     ax[1].set_xlabel("Wavenumber (cm⁻¹)")
     ax[1].set_ylabel("Intensity")
@@ -252,27 +280,6 @@ def get_confidence_description(logit_margin):
         return "LOW", "🔴"
 
 
-def init_session_state():
-    defaults = {
-        "status_message": "Ready to analyze polymer spectra 🔬",
-        "status_type": "info",
-        "input_text": None,
-        "filename": None,
-        "input_source": None,     # "upload" or "sample"
-        "sample_select": "-- Select Sample --",
-        "input_mode": "Upload File",   # controls which pane is visible
-        "inference_run_once": False,
-        "x_raw": None, "y_raw": None, "y_resampled": None,
-        "log_messages": [],
-    }
-    for k, v in defaults.items():
-        st.session_state.setdefault(k, v)
-
-    for key, default_value in defaults.items():
-        if key not in st.session_state:
-            st.session_state[key] = default_value
-
-
 def log_message(msg: str):
     """Append a timestamped line to the in-app log, creating the buffer if needed."""
     if "log_messages" not in st.session_state or st.session_state["log_messages"] is None:
@@ -287,21 +294,7 @@ def trigger_run():
     st.session_state['run_requested'] = True
 
 
-def on_upload_change():
-    """Read uploaded file once and persist as text."""
-    up = st.session_state.get("upload_txt")  # the uploader's key
-    if not up:
-        return
-    raw = up.read()
-    text = raw.decode("utf-8") if isinstance(raw, bytes) else raw
-    st.session_state["input_text"] = text
-    st.session_state["filename"] = getattr(up, "name", "uploaded.txt")
-    st.session_state["input_source"] = "upload"
 
-    # 🔧 Clear previous results so the right column resets immediately
-    reset_results("New file selected")
-    st.session_state["status_message"] = f"📁 File '{st.session_state['filename']}' ready for analysis"
-    st.session_state["status_type"] = "success"
 
 
 def on_sample_change():
@@ -351,6 +344,31 @@ def reset_results(reason: str = ""):
     )
     st.session_state["status_type"] = "info"
 
+def reset_ephemeral_state():
+    # === remove everything except KEPT global UI context ===
+    for k in list(st.session_state.keys()):
+        if k not in KEEP_KEYS:
+            st.session_state.pop(k, None)
+
+    # == bump the uploader version → new widget instance with empty value ==
+    st.session_state["uploader_version"] += 1
+    st.session_state["current_upload_key"] = f"upload_txt_{st.session_state['uploader_version']}"
+    
+    # == reseed other emphemeral state ==
+    st.session_state["input_text"] =  None
+    st.session_state["filename"] = None
+    st.session_state["input_source"] = None
+    st.session_state["sample_select"] = "-- Select Sample --"
+    # == return the UI to a clean state ==
+    st.session_state["inference_run_once"] = False
+    st.session_state["x_raw"] = None
+    st.session_state["y_raw"] = None
+    st.session_state["y_resampled"] = None
+    st.session_state["log_messages"] = []
+    st.session_state["status_message"] = "Ready to analyze polymer spectra 🔬"
+    st.session_state["status_type"] = "info"
+    
+    st.rerun()
 
 # Main app
 def main():
@@ -360,7 +378,7 @@ def main():
     st.markdown(
         "**Predict polymer degradation states using Raman spectroscopy and deep learning**")
     st.info(
-        "⚠️ **Prototype Notice:** v0.1 Raman-only. "
+        "**Prototype Notice:** v0.1 Raman-only. "
         "Multi-model CNN evaluation in progress. "
         "FTIR support planned.",
         icon="⚡"
@@ -381,8 +399,8 @@ def main():
         ---
 
         **Team**  
-        👨‍🏫 Dr. Sanmukh Kuppannagari (Mentor)  
-        👨‍🏫 Dr. Metin Karailyan (Mentor)  
+        Dr. Sanmukh Kuppannagari (Mentor)  
+        Dr. Metin Karailyan (Mentor)  
         👨‍💻 Jaser Hasan (Author)
 
         ---
@@ -409,7 +427,7 @@ def main():
         model_labels = [
             f"{MODEL_CONFIG[name]['emoji']} {name}" for name in MODEL_CONFIG.keys()]
         selected_label = st.selectbox("Choose AI model:", model_labels,
-                                      key="model_select", on_change=on_model_change)
+                                    key="model_select", on_change=on_model_change)
         model_choice = selected_label.split(" ", 1)[1]
 
         # Model info
@@ -439,13 +457,29 @@ def main():
 
         # ---- Upload tab ----
         if mode == "Upload File":
+            upload_key = st.session_state["current_upload_key"]
             up = st.file_uploader(
                 "Upload Raman spectrum (.txt)",
                 type="txt",
                 help="Upload a text file with wavenumber and intensity columns",
-                key="upload_txt",
-                on_change=on_upload_change,  # <-- critical
+                key=upload_key,     # ← versioned key
             )
+
+            # == process change immediately (no on_change; simpler & reliable) ==
+            if up is not None:
+                raw = up.read()
+                text = raw.decode("utf-8") if isinstance(raw, bytes) else raw
+                # == only reparse if its a different file|source ==
+                if st.session_state.get("filename") != getattr(up, "name", None) or st.session_state.get("input_source") != "upload":
+                    st.session_state["input_text"] = text 
+                    st.session_state["filename"] = getattr(up, "name", "uploaded.txt")
+                    st.session_state["input_source"] = "upload"
+
+                    # == clear right column immediately ==
+                    reset_results("New file selected")
+                    st.session_state["status_message"] = f"📁 File '{st.session_state['filename']}' ready for analysis"
+                    st.session_state["status_type"] = "success"
+
             if up:
                 st.success(f"✅ Loaded: {up.name}")
 
@@ -486,7 +520,7 @@ def main():
         inference_ready = bool(st.session_state.get(
             "input_text")) and (model is not None)
 
-        # ---- Run Analysis (form submit batches state + submit atomically) ----
+        # === Run Analysis (form submit batches state) ===
         with st.form("analysis_form", clear_on_submit=False):
             submitted = st.form_submit_button(
                 "▶️ Run Analysis",
@@ -494,8 +528,14 @@ def main():
                 disabled=not inference_ready,
             )
 
+        if st.button("Reset", help="Clear current file(s), plots, and results"):
+            reset_ephemeral_state()
+
+            
+
         if submitted and inference_ready:
-        # Handles the submission of the analysis form and performs spectrum data processing
+            # parse → preprocess → predict → render
+            # Handles the submission of the analysis form and performs spectrum data processing
             try:
                 raw_text = st.session_state["input_text"]
                 filename = st.session_state.get("filename") or "unknown.txt"
