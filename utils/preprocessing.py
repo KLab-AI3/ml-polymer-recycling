@@ -12,16 +12,16 @@ from scipy.interpolate import interp1d
 
 TARGET_LENGTH = 500     # Frozen default per PREPROCESSING_BASELINE
 
-def __ensure_1d_equal(x: np.ndarray, y: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+def _ensure_1d_equal(x: np.ndarray, y: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     x = np.asarray(x, dtype=float)
-    y = np.asarray(x, dtype=float)
+    y = np.asarray(y, dtype=float)
     if x.ndim != 1 or y.ndim != 1 or x.size != y.size or x.size < 2:
         raise ValueError("x and y must be 1D arrays of equal length >= 2")
     return x, y
 
 def resample_spectrum(x: np.ndarray, y: np.ndarray, target_len: int = TARGET_LENGTH) -> tuple[np.ndarray, np.ndarray]:
     """Linear re-sampling onto a uniform grid of length target_len."""
-    x, y = __ensure_1d_equal(x, y)
+    x, y = _ensure_1d_equal(x, y)
     order = np.argsort(x)
     x_sorted, y_sorted = x[order], y[order]
     x_new = np.linspace(x_sorted[0], x_sorted[-1], int(target_len))
