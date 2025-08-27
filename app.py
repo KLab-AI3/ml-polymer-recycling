@@ -495,6 +495,7 @@ def main():
             )
 
         if submitted and inference_ready:
+        # Handles the submission of the analysis form and performs spectrum data processing
             try:
                 raw_text = st.session_state["input_text"]
                 filename = st.session_state.get("filename") or "unknown.txt"
@@ -505,7 +506,7 @@ def main():
 
                 # Resample
                 with st.spinner("Resampling spectrum..."):
-                    y_resampled = resample_spectrum(x_raw, y_raw, TARGET_LEN)
+                    _,  y_resampled = resample_spectrum(x_raw, y_raw, TARGET_LEN)
 
                 # Persist results (drives right column)
                 st.session_state["x_raw"] = x_raw
@@ -541,7 +542,7 @@ def main():
                         x_raw, y_raw, y_resampled)
                     st.image(
                         spectrum_plot, caption="Spectrum Preprocessing Results", use_container_width=True)
-                except Exception as e:
+                except (ValueError, RuntimeError, TypeError) as e:
                     st.warning(f"Could not generate plot: {e}")
                     log_message(f"Plot generation error: {e}")
 
