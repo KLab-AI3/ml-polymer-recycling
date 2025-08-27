@@ -1,6 +1,5 @@
 from models.resnet_cnn import ResNet1D
 from models.figure2_cnn import Figure2CNN
-import logging
 import hashlib
 import gc
 import time
@@ -22,14 +21,7 @@ if utils_path.is_dir() and str(utils_path) not in sys.path:
 matplotlib.use("Agg")  # ensure headless rendering in Spaces
 
 # Import local modules
-# Prefer canonical script; fallback to local utils for HF hard-copy scenario
-try:
-    from scripts.preprocess_dataset import resample_spectrum
-except (ImportError, ModuleNotFoundError):
-    try:
-        from utils.preprocessing import resample_spectrum
-    except (ImportError, ModuleNotFoundError):
-        raise ImportError("Could not import 'resample_spectrum' from either 'scripts.preprocess_dataset' or 'utils.preprocessing'. Please ensure the function exists in one of these modules.")
+from utils.preprocessing import resample_spectrum
 
 KEEP_KEYS = {
     # === global UI context we want to keep after "Reset" ===
@@ -129,7 +121,7 @@ def label_file(filename: str) -> int:
 def load_state_dict(_mtime, model_path):
     """Load state dict with mtime in cache key to detect file changes"""
     try:
-        return torch.load(model_path, map_location="cpu")
+        return torch.load(model_path, map_location="cpu", weights_only=True)
     except (FileNotFoundError, RuntimeError) as e:
         st.warning(f"Error loading state dict: {e}")
         return None
@@ -235,11 +227,11 @@ def parse_spectrum_data(raw_text):
     return x, y
 
 
-def create_spectrum_plot(x_raw, y_raw, y_resampled):
+def create_spectrum_plot(x_raw, y_raw, x_resampled, y_resampled):
     """Create spectrum visualization plot"""
     fig, ax = plt.subplots(1, 2, figsize=(13, 5), dpi=100)
 
-    # Raw spectrum
+    # == Raw spectrum ==
     ax[0].plot(x_raw, y_raw, label="Raw", color="dimgray", linewidth=1)
     ax[0].set_title("Raw Input Spectrum")
     ax[0].set_xlabel("Wavenumber (cm⁻¹)")
@@ -247,19 +239,16 @@ def create_spectrum_plot(x_raw, y_raw, y_resampled):
     ax[0].grid(True, alpha=0.3)
     ax[0].legend()
 
-    # Resampled spectrum
-    x_resampled = np.linspace(min(x_raw), max(x_raw), TARGET_LEN)
-    ax[1].plot(x_resampled, y_resampled, label="Resampled",
-            color="steelblue", linewidth=1)
-    ax[1].set_title(f"Resampled ({TARGET_LEN} points)")
+    # == Resampled spectrum ==
+    ax[1].plot(x_resampled, y_resampled, label="Resampled", color="steelblue", linewidth=1)
+    ax[1].set_title(f"Resampled ({len(y_resampled)} points)")
     ax[1].set_xlabel("Wavenumber (cm⁻¹)")
     ax[1].set_ylabel("Intensity")
     ax[1].grid(True, alpha=0.3)
     ax[1].legend()
 
     plt.tight_layout()
-
-    # Convert to image
+    # == Convert to image ==
     buf = io.BytesIO()
     plt.savefig(buf, format='png', bbox_inches='tight', dpi=100)
     buf.seek(0)
@@ -546,7 +535,30 @@ def main():
 
                 # Resample
                 with st.spinner("Resampling spectrum..."):
-                    _,  y_resampled = resample_spectrum(x_raw, y_raw, TARGET_LEN)
+                    # ===Resample Unpack===
+                    r1, r2 = resample_spectrum(x_raw, y_raw, TARGET_LEN)
+
+                    def _is_strictly_increasing(a):
+                        try:
+                            a = np.asarray(a)
+                            return a.ndim == 1  and a.size >= 2 and np.all(np.diff(a) > 0)
+                        except Exception:
+                            return False
+
+                    if _is_strictly_increasing(r1) and not _is_strictly_increasing(r2):
+                        x_resampled, y_resampled = np.asarray(r1), np.asarray(r2)
+                    elif _is_strictly_increasing(r2) and not _is_strictly_increasing(r1):
+                        x_resampled, y_resampled = np.asarray(r2), np.asarray(r1)
+                    else:
+                        # == Ambigous; assume (x, y) and log
+                        x_resampled, y_resampled = np.asarray(r1), np.asarray(r2)
+                        log_message("Resample outputs ambigous; assumed (x, y).")
+
+                    # ===Persists for plotting + inference===
+                    st.session_state["x_raw"] = x_raw
+                    st.session_state["y_raw"] = y_raw
+                    st.session_state["x_resampled"] = x_resampled   #  ←-- NEW 
+                    st.session_state["y_resampled"] = y_resampled
 
                 # Persist results (drives right column)
                 st.session_state["x_raw"] = x_raw
@@ -571,6 +583,7 @@ def main():
             # Get data from session state
             x_raw = st.session_state.get('x_raw')
             y_raw = st.session_state.get('y_raw')
+            x_resampled = st.session_state.get('x_resampled')   # ← NEW
             y_resampled = st.session_state.get('y_resampled')
             filename = st.session_state.get('filename', 'Unknown')
 
@@ -578,8 +591,7 @@ def main():
 
                 # Create and display plot
                 try:
-                    spectrum_plot = create_spectrum_plot(
-                        x_raw, y_raw, y_resampled)
+                    spectrum_plot = create_spectrum_plot(x_raw, y_raw, x_resampled, y_resampled)
                     st.image(
                         spectrum_plot, caption="Spectrum Preprocessing Results", use_container_width=True)
                 except (ValueError, RuntimeError, TypeError) as e:
@@ -705,6 +717,33 @@ def main():
                         st.markdown("**Debug Log**")
                         st.text_area("Logs", "\n".join(
                             st.session_state.get("log_messages", [])), height=200)
+
+                        try:
+                            resampler_mod = getattr(resample_spectrum, "__module__", "unknown")
+                            resampler_doc = getattr(resample_spectrum, "__doc__", None)
+                            resampler_doc = resampler_doc.splitlines()[0] if isinstance(resampler_doc, str) and resampler_doc else "no doc"
+
+                            y_rs = st.session_state.get("y_resampled", None)
+                            diag = {}
+                            if y_rs is not None:
+                                arr = np.asarray(y_rs)
+                                diag = {
+                                    "y_resampled_len": int(arr.size),
+                                    "y_resampled_min": float(np.min(arr)) if arr.size else None,
+                                    "y_resampled_max": float(np.max(arr)) if arr.size else None,
+                                    "y_resampled_ptp": float(np.ptp(arr)) if arr.size else None,
+                                    "y_resampled_unique": int(np.unique(arr).size) if arr.size else None,
+                                    "y_resampled_all_equal": bool(np.ptp(arr) == 0.0) if arr.size else None,
+                                }
+
+                            st.markdown("**Resampler Info")
+                            st.json({
+                                "module": resampler_mod,
+                                "doc": resampler_doc,
+                                **({"y_resampled_stats": diag} if diag else {})
+                            })
+                        except Exception as _e:
+                            st.warning(f"Diagnostics skipped: {_e}")
 
                     with tab3:
                         st.markdown("""
