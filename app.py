@@ -618,8 +618,6 @@ def main():
                     st.session_state["status_message"] = f"📁 File '{st.session_state['filename']}' ready for analysis"
                     st.session_state["status_type"] = "success"
 
-            if up:
-                st.markdown(f"✅ Loaded: {up.name}")
 
         # ---- Sample tab ----
         else:
@@ -639,7 +637,6 @@ def main():
                 st.info("No sample data available")
 
         # ---- Status box ----
-        st.markdown("##### Status")
         msg = st.session_state.get("status_message", "Ready")
         typ = st.session_state.get("status_type", "info")
         if typ == "success":
@@ -661,7 +658,7 @@ def main():
         # === Run Analysis (form submit batches state) ===
         with st.form("analysis_form", clear_on_submit=False):
             submitted = st.form_submit_button(
-                "▶️ Run Analysis",
+                "Run Analysis",
                 type="primary",
                 disabled=not inference_ready,
             )
