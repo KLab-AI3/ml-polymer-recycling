@@ -1,4 +1,4 @@
-# 🔬 AI-Driven Polymer Aging Prediction and Classification System
+# AI-Driven Polymer Aging Prediction and Classification System
 
 A research project developed as part of AIRE 2025. This system applies deep learning to spectral data to classify polymer aging a critical proxy for recyclability using a fully reproducible and modular ML pipeline.
 
@@ -6,7 +6,7 @@ The broader research vision is a multi-modal evaluation platform, benchmarking n
 
 ---
 
-## 🎯 Project Objective
+## Project Objective
 
 - Build a validated machine learning system for classifying polymer spectra (predict degradation levels as a proxy for recyclability)
 - Evaluate and compare multiple CNN architectures, beginning with Figure2CNN and ResNet variants, and expand to additional trained models.
@@ -22,7 +22,7 @@ The broader research vision is a multi-modal evaluation platform, benchmarking n
 
 ---
 
-## 🧠 Model Architectures
+## Model Architectures
 
 | Model            | Description                                                            |
 | ---------------- | ---------------------------------------------------------------------- |
@@ -34,7 +34,7 @@ Future expansions will add additional trained CNNs, supporting direct benchmarki
 
 ---
 
-## 📁 Project Structure (Cleaned and Current)
+## Project Structure (Cleaned and Current)
 
 ```text
 ml-polymer-recycling/
@@ -50,23 +50,23 @@ ml-polymer-recycling/
 
 ---
 
-## ✅ Current Status
+## Current Status
 
 | Track     | Status                  | Test Accuracy      |
 | --------- | ----------------------- | ------------------ |
-| **Raman** | ✅ Active & validated   | **87.81% ± 7.59%** |
-| **Image** | 🚧 Planned Expansion    | N/A                |
-| **FTIR**  | ⏸️ Deferred/Modularized | N/A                |
+| **Raman** | Active & validated   | **87.81% ± 7.59%** |
+| **Image** | Planned Expansion    | N/A                |
+| **FTIR**  | Reactivating Modules Soon | N/A                |
 
 ## 🔬 Key Features
 
-- ✅ 10-Fold Stratified Cross-Validation
-- ✅ CLI Training: `train_model.py`
-- ✅ CLI Inference `run_inference.py`
-- ✅ Output artifact naming per model
-- ✅ Raman-only preprocessing with baseline correction, smoothing, normalization
-- ✅ Structured diagnostics JSON (accuracies, confusion matrices)
-- ✅ Canonical validation script (`validate_pipeline.sh`) confirms reproducibility of all core components
+- 10-Fold Stratified Cross-Validation
+- CLI Training: `train_model.py`
+- CLI Inference `run_inference.py`
+- Output artifact naming per model
+- Raman-only preprocessing with baseline correction, smoothing, normalization
+- Structured diagnostics JSON (accuracies, confusion matrices)
+- Canonical validation script (`validate_pipeline.sh`) confirms reproducibility of all core components
 
 ---
 
@@ -84,7 +84,7 @@ conda env create -f environment_hpc.yml
 conda activate polymer_env
 ```
 
-## 📊 Sample Training & Inference
+## Sample Training & Inference
 
 ### Training (10-Fold CV)
 
@@ -117,7 +117,7 @@ Raw Logits: [[-569.544, 427.996]]
 
 ---
 
-## 📚 Dataset Resources
+## Dataset Resources
 
 | Type  | Dataset | Source                                                                                                                    |
 | ----- | ------- | ------------------------------------------------------------------------------------------------------------------------- |
@@ -137,7 +137,7 @@ These files are intentionally excluded from version control via `.gitignore`
 
 ---
 
-## 🛠 Dependencies
+## Dependencies
 
 - `Python 3.10+`
 - `Conda, Git`
