@@ -24,6 +24,12 @@ matplotlib.use("Agg")  # ensure headless rendering in Spaces
 # Import local modules
 from utils.preprocessing import resample_spectrum
 
+# Import new utilities
+from utils.errors import ErrorHandler, safe_execute
+from utils.results_manager import ResultsManager
+from utils.confidence import calculate_softmax_confidence, get_confidence_badge, create_confidence_progress_html
+from utils.multifile import create_batch_uploader, process_multiple_files, display_batch_results
+
 KEEP_KEYS = {
     # === global UI context we want to keep after "Reset" ===
     "model_select",     # sidebar model key
@@ -214,6 +220,7 @@ def init_session_state():
         "uploader_version": 0,
         "current_upload_key": "upload_txt_0",
         "active_tab": "Details",
+        "batch_mode": False,  # Track if in batch mode
     }
     for k, v in defaults.items():
         st.session_state.setdefault(k, v)
@@ -221,6 +228,9 @@ def init_session_state():
     for key, default_value in defaults.items():
         if key not in st.session_state:
             st.session_state[key] = default_value
+    
+    # Initialize results table
+    ResultsManager.init_results_table()
 
 
 def label_file(filename: str) -> int:
@@ -471,11 +481,7 @@ def get_confidence_description(logit_margin):
 
 def log_message(msg: str):
     """Append a timestamped line to the in-app log, creating the buffer if needed."""
-    if "log_messages" not in st.session_state or st.session_state["log_messages"] is None:
-        st.session_state["log_messages"] = []
-    st.session_state["log_messages"].append(
-        f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] {msg}"
-    )
+    ErrorHandler.log_info(msg)
 
 def trigger_run():
     """Set a flag so we can detect button press reliably across reruns"""
@@ -605,7 +611,7 @@ def main():
 
         mode = st.radio(
             "Input mode",
-            ["Upload File", "Sample Data"],
+            ["Upload File", "Batch Upload", "Sample Data"],
             key="input_mode",
             horizontal=True,
             on_change=on_input_mode_change
@@ -630,15 +636,29 @@ def main():
                     st.session_state["input_text"] = text 
                     st.session_state["filename"] = getattr(up, "name", "uploaded.txt")
                     st.session_state["input_source"] = "upload"
+                    st.session_state["batch_mode"] = False
 
                     # == clear right column immediately ==
                     reset_results("New file selected")
                     st.session_state["status_message"] = f"📁 File '{st.session_state['filename']}' ready for analysis"
                     st.session_state["status_type"] = "success"
 
+        # ---- Batch Upload tab ----
+        elif mode == "Batch Upload":
+            st.session_state["batch_mode"] = True
+            uploaded_files = create_batch_uploader()
+            
+            if uploaded_files:
+                st.success(f"📁 {len(uploaded_files)} files selected for batch processing")
+                st.session_state["batch_files"] = uploaded_files
+                st.session_state["status_message"] = f"📁 {len(uploaded_files)} files ready for batch analysis"
+                st.session_state["status_type"] = "success"
+            else:
+                st.session_state["batch_files"] = []
 
         # ---- Sample tab ----
-        else:
+        elif mode == "Sample Data":
+            st.session_state["batch_mode"] = False
             sample_files = get_sample_files()
             if sample_files:
                 options = ["-- Select Sample --"] + \
@@ -669,14 +689,21 @@ def main():
         if not model_loaded:
             st.warning("⚠️ Model weights not available - using demo mode")
 
-        # Ready to run if we have text and a model
-        inference_ready = bool(st.session_state.get(
-            "input_text")) and (model is not None)
+        # Ready to run if we have text (single) or files (batch) and a model
+        is_batch_mode = st.session_state.get("batch_mode", False)
+        batch_files = st.session_state.get("batch_files", [])
+        
+        if is_batch_mode:
+            inference_ready = len(batch_files) > 0 and (model is not None)
+            button_text = f"Run Batch Analysis ({len(batch_files)} files)"
+        else:
+            inference_ready = bool(st.session_state.get("input_text")) and (model is not None)
+            button_text = "Run Analysis"
 
         # === Run Analysis (form submit batches state) ===
         with st.form("analysis_form", clear_on_submit=False):
             submitted = st.form_submit_button(
-                "Run Analysis",
+                button_text,
                 type="primary",
                 disabled=not inference_ready,
             )
@@ -687,58 +714,108 @@ def main():
             
 
         if submitted and inference_ready:
-            # parse → preprocess → predict → render
-            # Handles the submission of the analysis form and performs spectrum data processing
-            try:
-                raw_text = st.session_state["input_text"]
-                filename = st.session_state.get("filename") or "unknown.txt"
+            if is_batch_mode:
+                # === Batch Mode Processing ===
+                with st.spinner(f"Processing {len(batch_files)} files..."):
+                    progress_bar = st.progress(0)
+                    status_text = st.empty()
+                    
+                    def progress_callback(current, total, filename):
+                        progress = current / total if total > 0 else 0
+                        progress_bar.progress(progress)
+                        status_text.text(f"Processing: {filename} ({current}/{total})")
+                    
+                    # Process all files
+                    batch_results = process_multiple_files(
+                        batch_files,
+                        model_choice,
+                        load_model,
+                        run_inference,
+                        label_file,
+                        progress_callback
+                    )
+                    
+                    progress_bar.progress(1.0)
+                    status_text.text("Batch processing complete!")
+                    
+                    # Update session state
+                    st.session_state["batch_results"] = batch_results
+                    st.session_state["inference_run_once"] = True
+                    successful_count = sum(1 for r in batch_results if r.get("success", False))
+                    st.session_state["status_message"] = f"🔍 Batch analysis completed: {successful_count}/{len(batch_files)} successful"
+                    st.session_state["status_type"] = "success"
+                    
+                st.rerun()
+            else:
+                # === Single File Mode Processing ===
+                # parse → preprocess → predict → render
+                # Handles the submission of the analysis form and performs spectrum data processing
+                try:
+                    raw_text = st.session_state["input_text"]
+                    filename = st.session_state.get("filename") or "unknown.txt"
 
-                # Parse
-                with st.spinner("Parsing spectrum data..."):
-                    x_raw, y_raw = parse_spectrum_data(raw_text)
+                    # Parse
+                    with st.spinner("Parsing spectrum data..."):
+                        x_raw, y_raw = parse_spectrum_data(raw_text)
 
-                # Resample
-                with st.spinner("Resampling spectrum..."):
-                    # ===Resample Unpack===
-                    r1, r2 = resample_spectrum(x_raw, y_raw, TARGET_LEN)
+                    # Resample
+                    with st.spinner("Resampling spectrum..."):
+                        # ===Resample Unpack===
+                        r1, r2 = resample_spectrum(x_raw, y_raw, TARGET_LEN)
 
-                    def _is_strictly_increasing(a):
-                        a = np.asarray(a)
-                        return a.ndim == 1  and a.size >= 2 and np.all(np.diff(a) > 0)
+                        def _is_strictly_increasing(a):
+                            a = np.asarray(a)
+                            return a.ndim == 1  and a.size >= 2 and np.all(np.diff(a) > 0)
 
-                    if _is_strictly_increasing(r1) and not _is_strictly_increasing(r2):
-                        x_resampled, y_resampled = np.asarray(r1), np.asarray(r2)
-                    elif _is_strictly_increasing(r2) and not _is_strictly_increasing(r1):
-                        x_resampled, y_resampled = np.asarray(r2), np.asarray(r1)
-                    else:
-                        # == Ambigous; assume (x, y) and log
-                        x_resampled, y_resampled = np.asarray(r1), np.asarray(r2)
-                        log_message("Resample outputs ambigous; assumed (x, y).")
+                        if _is_strictly_increasing(r1) and not _is_strictly_increasing(r2):
+                            x_resampled, y_resampled = np.asarray(r1), np.asarray(r2)
+                        elif _is_strictly_increasing(r2) and not _is_strictly_increasing(r1):
+                            x_resampled, y_resampled = np.asarray(r2), np.asarray(r1)
+                        else:
+                            # == Ambigous; assume (x, y) and log
+                            x_resampled, y_resampled = np.asarray(r1), np.asarray(r2)
+                            log_message("Resample outputs ambigous; assumed (x, y).")
 
-                    # ===Persists for plotting + inference===
+                        # ===Persists for plotting + inference===
+                        st.session_state["x_raw"] = x_raw
+                        st.session_state["y_raw"] = y_raw
+                        st.session_state["x_resampled"] = x_resampled   #  ←-- NEW 
+                        st.session_state["y_resampled"] = y_resampled
+
+                    # Persist results (drives right column)
                     st.session_state["x_raw"] = x_raw
                     st.session_state["y_raw"] = y_raw
-                    st.session_state["x_resampled"] = x_resampled   #  ←-- NEW 
                     st.session_state["y_resampled"] = y_resampled
+                    st.session_state["inference_run_once"] = True
+                    st.session_state["status_message"] = f"🔍 Analysis completed for: {filename}"
+                    st.session_state["status_type"] = "success"
 
-                # Persist results (drives right column)
-                st.session_state["x_raw"] = x_raw
-                st.session_state["y_raw"] = y_raw
-                st.session_state["y_resampled"] = y_resampled
-                st.session_state["inference_run_once"] = True
-                st.session_state["status_message"] = f"🔍 Analysis completed for: {filename}"
-                st.session_state["status_type"] = "success"
+                    st.rerun()
 
-                st.rerun()
-
-            except (ValueError, TypeError) as e:
-                st.error(f"❌ Analysis failed: {e}")
-                st.session_state["status_message"] = f"❌ Error: {e}"
-                st.session_state["status_type"] = "error"
+                except (ValueError, TypeError) as e:
+                    ErrorHandler.log_error(e, "Single file analysis")
+                    st.error(f"❌ Analysis failed: {e}")
+                    st.session_state["status_message"] = f"❌ Error: {e}"
+                    st.session_state["status_type"] = "error"
 
     # Results column
     with col2:
-        if st.session_state.get("inference_run_once", False):
+        # Check if we're in batch mode or have batch results
+        is_batch_mode = st.session_state.get("batch_mode", False)
+        has_batch_results = "batch_results" in st.session_state
+        
+        if is_batch_mode and has_batch_results:
+            # === Display Batch Results ===
+            st.markdown("##### Batch Analysis Results")
+            batch_results = st.session_state["batch_results"]
+            display_batch_results(batch_results)
+            
+            # Add session results table
+            st.markdown("---")
+            ResultsManager.display_results_table()
+            
+        elif st.session_state.get("inference_run_once", False) and not is_batch_mode:
+            # === Display Single File Results ===
             st.markdown("##### Analysis Results")
 
             # Get data from session state
@@ -767,14 +844,40 @@ def main():
                 true_label_idx = label_file(filename)
                 true_label_str = LABEL_MAP.get(
                     true_label_idx, "Unknown") if true_label_idx is not None else "Unknown"
+                
                 # ===Get prediction===
                 predicted_class = LABEL_MAP.get(
                     int(prediction), f"Class {int(prediction)}")
-                # === confidence metrics ===
-                logit_margin = abs(
-                    (logits_list[0] - logits_list[1]) if logits_list is not None and len(logits_list) >= 2 else 0
+                
+                # === Enhanced confidence calculation ===
+                if logits is not None:
+                    # Use new softmax-based confidence
+                    probs_np, max_confidence, confidence_level, confidence_emoji = calculate_softmax_confidence(logits)
+                    confidence_desc = confidence_level
+                else:
+                    # Fallback to legacy method
+                    logit_margin = abs(
+                        (logits_list[0] - logits_list[1]) if logits_list is not None and len(logits_list) >= 2 else 0
+                    )
+                    confidence_desc, confidence_emoji = get_confidence_description(logit_margin)
+                    max_confidence = logit_margin / 10.0  # Normalize for display
+                    probs_np = np.array([])
+
+                # Store result in results manager for single file too
+                ResultsManager.add_result(
+                    filename=filename,
+                    model_name=model_choice,
+                    prediction=prediction,
+                    predicted_class=predicted_class,
+                    confidence=max_confidence,
+                    logits=logits_list if logits_list else [],
+                    ground_truth=true_label_idx if true_label_idx >= 0 else None,
+                    processing_time=inference_time,
+                    metadata={
+                        "confidence_level": confidence_desc,
+                        "confidence_emoji": confidence_emoji
+                    }
                 )
-                confidence_desc, confidence_emoji = get_confidence_description(logit_margin)
 
                 #===Precompute Stats===
                 spec_stats = {
@@ -825,7 +928,7 @@ def main():
                             else:
                                 st.markdown(f"🟡 **Prediction**: {predicted_class}")
                             st.markdown(
-                                f"**{confidence_emoji} Confidence**: {confidence_desc} (margin: {logit_margin:.1f})")
+                                f"**{confidence_emoji} Confidence**: {confidence_desc} ({max_confidence:.1%})")
                             if true_label_idx is not None:
                                 if predicted_class == true_label_str:
                                     st.markdown(
@@ -838,12 +941,21 @@ def main():
                                     "**Ground Truth**: Unknown (filename doesn't follow naming convention)")
 
                             st.markdown("###### Confidence Overview")
-                            render_confidence_progress(
-                                probs if probs is not None else np.array([]),
-                                labels=["Stable", "Weathered"],
-                                highlight_idx=int(prediction),
-                                side_by_side=True, # Set false for stacked <<
-                            )
+                            if len(probs_np) > 0:
+                                confidence_html = create_confidence_progress_html(
+                                    probs_np,
+                                    labels=["Stable", "Weathered"],
+                                    highlight_idx=int(prediction)
+                                )
+                                st.markdown(confidence_html, unsafe_allow_html=True)
+                            else:
+                                # Fallback to legacy method
+                                render_confidence_progress(
+                                    probs if probs is not None else np.array([]),
+                                    labels=["Stable", "Weathered"],
+                                    highlight_idx=int(prediction),
+                                    side_by_side=True, # Set false for stacked <<
+                                )
 
                 elif active_tab == "Technical":
                     with st.container():
