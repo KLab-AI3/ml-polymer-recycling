@@ -690,7 +690,13 @@ def main():
 
                     # ===display confidence results===
                     class_labels = ["Stable", "Weathered"]
-                    plot_confidence_bar(probabilities=probs.tolist(), class_labels=class_labels)
+                    st.markdown("#### 🔬 Confidence Overview")
+                    def render_confidence_bar(prob, length=20):
+                        filled = int(prob + length)
+                        return "█" * filled + "░" * (length - filled)
+
+                    for i, label in enumerate(class_labels):
+                        st.write(f"**{label}**: {render_confidence_bar(probs[i])} {probs[i]*100:.1f}%")
 
                     # ===Detailed results tabs===
                     tab1, tab2, tab3 = st.tabs(
