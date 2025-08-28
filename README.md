@@ -149,7 +149,7 @@ These files are intentionally excluded from version control via `.gitignore`
 
 ---
 
-## 🧑‍🤝‍🧑 Contributors
+## Contributors
 
 - **Dr. Sanmukh Kuppannagari** — Research Mentor
 - **Dr. Metin Karailyan** — Research Mentor
@@ -157,7 +157,7 @@ These files are intentionally excluded from version control via `.gitignore`
 
 ---
 
-## 🎯 Strategic Expansion Objectives (Roadmap)
+## Srategic Expansion Objectives (Roadmap)
 
 > The roadmap defines three major expansion paths designed to broaden the system’s capabilities and impact:
 
