@@ -40,14 +40,127 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Stabilize tab panel height on HF Spaces to prevent visible column jitter.
-# This sets a minimum height for the content area under the tab headers.
 st.markdown("""
 <style>
-/*  Tabs content area: the sibling after the tablist */
-    div[data-testid="stTabs"] > div[role="tablist"] + div { min-height: 420px;}
+/* Keep only scoped utility styles; no .block-container edits */
+
+/* Tabs content area height (your original intent) */
+div[data-testid="stTabs"] > div[role="tablist"] + div { min-height: 420px; }
+
+/* Compact info box for confidence bar */
+.confbox {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.95rem;
+  padding: 8px 10px; border: 1px solid rgba(0,0,0,.07);
+  border-radius: 8px; background: rgba(0,0,0,.02);
+}
+
+/* Clean key–value rows for technical info */
+.kv-row { display:flex; justify-content:space-between;
+  border-bottom: 1px dotted rgba(0,0,0,.10); padding: 3px 0; gap: 12px; }
+.kv-key { opacity:.75; font-size: 0.92rem; white-space: nowrap; }
+.kv-val { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  overflow-wrap: anywhere; }
+
+/* Ensure markdown h5 headings remain visible after layout shifts */
+:where(h5, .stMarkdown h5) { margin-top: 0.25rem; }
+
+/* === Base Expander Header === */
+div.stExpander > details > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  list-style: none;             /* remove default arrow */
+  cursor: pointer;
+  border: 1px solid rgba(0,0,0,.15);
+  border-left: 4px solid #9ca3af;   /* default gray accent */
+  border-radius: 6px;
+  padding: 6px 12px;
+  margin: 6px 0;
+  background: rgba(0,0,0,0.04);
+  font-weight: 600;
+  font-size: 0.92rem;
+}
+
+/* Remove ugly default disclosure triangle */
+div.stExpander > details > summary::-webkit-details-marker {
+  display: none;
+}
+div.stExpander > details > summary::marker {
+  display: none;
+}
+
+/* Hover/active subtlety */
+div.stExpander > details[open] > summary {
+  background: rgba(0,0,0,0.06);
+}
+
+/* Hide Streamlit's custom arrow icon inside expanders */
+div[data-testid="stExpander"] summary svg {
+  display: none !important;
+}
+
+/* === Right Badge === */
+div.stExpander > details > summary::after {
+  content: "MORE ↓";
+  font-size: 0.70rem;
+  font-weight: 600;
+  letter-spacing: .04em;
+  padding: 2px 8px;
+  border-radius: 999px;
+  margin-left: auto;
+  background: #e5e7eb;
+  color: #111827;
+}
+
+/* === Variants by Keyword === */
+div.stExpander:has(summary:contains("Prediction")) > details > summary {
+  border-left-color: #2e7d32;
+  background: rgba(46,125,50,0.08);
+}
+div.stExpander:has(summary:contains("Prediction")) > details > summary::after {
+  content: "RESULTS";
+  background: rgba(46,125,50,0.15); color: #184a1d;
+}
+
+div.stExpander:has(summary:contains("Technical")) > details > summary {
+  border-left-color: #ed6c02;
+  background: rgba(237,108,2,0.08);
+}
+div.stExpander:has(summary:contains("Technical")) > details > summary::after {
+  content: "ADVANCED";
+  background: rgba(237,108,2,0.18); color: #7a3d00;
+}
+
+/* === FONT SIZE STANDARDIZATION === */
+
+/* Sidebar metrics (Accuracy, F1 Score) */
+div[data-testid="stMetricValue"] {
+  font-size: 0.95rem !important;  /* uniform body size */
+}
+div[data-testid="stMetricLabel"] {
+  font-size: 0.85rem !important;
+  opacity: 0.85;
+}
+
+/* Sidebar expander text */
+section[data-testid="stSidebar"] .stMarkdown p {
+  font-size: 0.92rem !important;
+  line-height: 1.4;
+}
+
+/* Diagnostics tab metrics (Logits) */
+div[data-testid="stMetricValue"] {
+  font-size: 0.95rem !important;
+}
+div[data-testid="stMetricLabel"] {
+  font-size: 0.85rem !important;
+}
+
+
 </style>
 """, unsafe_allow_html=True)
+
 
 # Constants
 TARGET_LEN = 500
@@ -63,7 +176,7 @@ MODEL_CONFIG = {
     "Figure2CNN (Baseline)": {
         "class": Figure2CNN,
         "path": f"{MODEL_WEIGHTS_DIR}/figure2_model.pth",
-        "emoji": "🔬",
+        "emoji": "",
         "description": "Baseline CNN with standard filters",
         "accuracy": "94.80%",
         "f1": "94.30%"
@@ -71,7 +184,7 @@ MODEL_CONFIG = {
     "ResNet1D (Advanced)": {
         "class": ResNet1D,
         "path": f"{MODEL_WEIGHTS_DIR}/resnet_model.pth",
-        "emoji": "🧠",
+        "emoji": "",
         "description": "Residual CNN with deeper feature learning",
         "accuracy": "96.20%",
         "f1": "95.90%"
@@ -84,6 +197,7 @@ LABEL_MAP = {0: "Stable (Unweathered)", 1: "Weathered (Degraded)"}
 
 # === UTILITY FUNCTIONS ===
 def init_session_state():
+    """Keep a persistent session state"""
     defaults = {
         "status_message": "Ready to analyze polymer spectra 🔬",
         "status_type": "info",
@@ -256,11 +370,74 @@ def create_spectrum_plot(x_raw, y_raw, x_resampled, y_resampled):
     plt.close(fig)  # Prevent memory leaks
 
     return Image.open(buf)
+        
+def _pct(p: float) -> str:
+    # Fixed-width percent like " 98.7%" or "  2.3%"
+    return f"{float(p)*100:5.1f}%"
 
-def render_confidence_bar(probabilities, class_labels):
-    bar = lambda p: "█" * int(p * 20)
-    for label, prob in zip(class_labels, probabilities):
-        st.write(f"**{label}**: {bar(prob)} {prob*100:.1f}%")
+def render_confidence_progress(
+    probs: np.ndarray,
+    labels: list[str] = ["Stable", "Weathered"],
+    highlight_idx: int | None = None,
+    side_by_side: bool = True
+):
+    """Render Streamlit native progress bars (0 - 100). Optionally bold the winning class
+    and place the two bars side-by-side for compactness."""
+    p = np.asarray(probs, dtype=float)
+    p = np.clip(p, 0.0, 1.0)
+
+    def _title(i: int, lbl: str, val: float) -> str:
+        t = f"{lbl} - {val*100:.1f}%"
+        return f"**{t}**" if (highlight_idx is not None and i == highlight_idx) else t
+
+    if side_by_side:
+        cols = st.columns(len(labels))
+        for i, (lbl, val, col) in enumerate(zip(labels, p, cols)):
+            with col:
+                st.markdown(_title(i, lbl, float(val)))
+                st.progress(int(round(val * 100)))
+    else:
+        for i, (lbl, val) in enumerate(zip(labels, p)):
+            st.markdown(_title(i, lbl, float(val)))
+            st.progress(int(round(val * 100)))
+
+
+
+
+
+
+def render_kv_grid(d: dict, ncols: int = 2):
+    """Display dict as a clean grid of key/value rows."""
+    if not d: 
+        return
+    items = list(d.items())
+    cols = st.columns(ncols)
+    for i, (k, v) in enumerate(items):
+        with cols[i % ncols]:
+            st.markdown(
+                f"<div class='kv-row'><span class='kv-key'>{k}</span>"
+                f"<span class='kv-val'>{v}</span></div>",
+                unsafe_allow_html=True
+            )
+
+
+
+
+def render_model_meta(model_choice: str):
+    info = MODEL_CONFIG.get(model_choice, {})
+    emoji = info.get("emoji", "")
+    desc = info.get("description", "").strip()
+    acc = info.get("accuracy", "-")
+    f1 = info.get("f1", "-")
+
+    st.caption(f"{emoji} **Model Snapshot** - {model_choice}")
+    cols = st.columns(2)
+    with cols[0]:
+        st.metric("Accuracy", acc)
+    with cols[1]:
+        st.metric("F1 Score", f1)
+    if desc:
+        st.caption(desc)
 
 
 def get_confidence_description(logit_margin):
@@ -331,7 +508,7 @@ def reset_results(reason: str = ""):
     st.session_state["status_type"] = "info"
 
 def reset_ephemeral_state():
-    # === remove everything except KEPT global UI context ===
+    """remove everything except KEPT global UI context"""
     for k in list(st.session_state.keys()):
         if k not in KEEP_KEYS:
             st.session_state.pop(k, None)
@@ -356,99 +533,57 @@ def reset_ephemeral_state():
     
     st.rerun()
 
-def plot_confidence_bar(probabilities: list[float], class_labels: list[str]) -> None:
-    """Renders a horizontal bar chart of prediction confidences per class."""
-    fig, ax = plt.subplots(figsize=(4, 1.5))
-    bars = ax.barh(class_labels, probabilities, color=[
-        "green" if i == np.argmax(probabilities) else "gray"
-        for i in range(len(probabilities))
-    ])
-    ax.set_xlabel("Confidence")
-    ax.set_title("Prediction Confidence")
-    ax.xaxis.set_ticks([0, 0.5, 1.0])
-    ax.set_xlim(0, 1.0)
-    for i, (label, prob) in enumerate(zip(class_labels, probabilities)):
-        ax.text(prob + 0.01, i, f"{prob*100:.1f}%", va='center', fontsize=8)
-
-    st.pyplot(fig)
-
-
 # Main app
 def main():
     init_session_state()
-    # Header
-    st.title("🔬 AI-Driven Polymer Classification")
-    st.markdown(
-        "**Predict polymer degradation states using Raman spectroscopy and deep learning**")
-    st.info(
-        "**Prototype Notice:** v0.1 Raman-only. "
-        "Multi-model CNN evaluation in progress. "
-        "FTIR support planned.",
-        icon="⚡"
-    )
 
     # Sidebar
     with st.sidebar:
-        st.header("ℹ️ About This App")
-        st.sidebar.markdown("""
-        AI-Driven Polymer Aging Prediction and Classification
-
-        🎯 **Purpose**: Classify polymer degradation using AI  
-        📊 **Input**: Raman spectroscopy `.txt` files  
-        🧠 **Models**: CNN architectures for binary classification  
-        💾 **Current**: Figure2CNN (baseline)  
-        📈 **Next**: More trained CNNs in evaluation pipeline
-
-        ---
-
-        **Team**  
-        Dr. Sanmukh Kuppannagari (Mentor)  
-        Dr. Metin Karailyan (Mentor)  
-        👨‍💻 Jaser Hasan (Author)
-
-        ---
-
-        **Links**  
-        🔗 [Live HF Space](https://huggingface.co/spaces/dev-jas/polymer-aging-ml)  
-        📂 [GitHub Repository](https://github.com/KLab-AI3/ml-polymer-recycling)
-
-        ---
-
-        **Model Credit**  
-        Baseline model inspired by *Figure 2 CNN* from:  
-        > Neo, E.R.K., Low, J.S.C., Goodship, V., Debattista, K. (2023).  
-        > *Deep learning for chemometric analysis of plastic spectral data from infrared and Raman databases*.  
-        > _Resources, Conservation & Recycling_, **188**, 106718.
-
-        [https://doi.org/10.1016/j.resconrec.2022.106718](https://doi.org/10.1016/j.resconrec.2022.106718)
-        """)
-
-        st.markdown("---")
-
-        # Model selection
-        st.subheader("🧠 Model Selection")
-        model_labels = [
-            f"{MODEL_CONFIG[name]['emoji']} {name}" for name in MODEL_CONFIG.keys()]
-        selected_label = st.selectbox("Choose AI model:", model_labels,
-                                    key="model_select", on_change=on_model_change)
+        # Header
+        st.header("AI-Driven Polymer Classification")
+        st.caption("Predict polymer degradation (Stable vs Weathered) from Raman spectra using validated CNN models. — v0.1")
+        model_labels = [f"{MODEL_CONFIG[name]['emoji']} {name}" for name in MODEL_CONFIG.keys()]
+        selected_label = st.selectbox("Choose AI Model", model_labels, key="model_select", on_change=on_model_change)
         model_choice = selected_label.split(" ", 1)[1]
 
-        # Model info
-        config = MODEL_CONFIG[model_choice]
-        st.markdown(f"""
-        **📈 {config['emoji']} Model Details**
-        
-        *{config['description']}*
-        
-        - **Accuracy**: `{config['accuracy']}`
-        - **F1 Score**: `{config['f1']}`
-        """)
+        # ===Compact metadata directly under dropdown===
+        render_model_meta(model_choice)
+
+        # ===Collapsed info to reduce clutter===
+        with st.expander("About This App",icon=":material/info:", expanded=False):
+            st.markdown("""
+            AI-Driven Polymer Aging Prediction and Classification
+
+            **Purpose**: Classify polymer degradation using AI  
+            **Input**: Raman spectroscopy `.txt` files  
+            **Models**: CNN architectures for binary classification  
+            **Next**: More trained CNNs in evaluation pipeline
+
+            ---
+
+            **Contributors**  
+            Dr. Sanmukh Kuppannagari (Mentor)  
+            Dr. Metin Karailyan (Mentor)  
+            👨‍💻 Jaser Hasan (Author)
+
+            ---
+
+            **Links**  
+            🔗 [Live HF Space](https://huggingface.co/spaces/dev-jas/polymer-aging-ml)  
+            📂 [GitHub Repository](https://github.com/KLab-AI3/ml-polymer-recycling)
+
+            ---
+
+            **Citation Figure2CNN (baseline)**  
+            Neo et al., 2023, *Resour. Conserv. Recycl.*, 188, 106718.
+            [https://doi.org/10.1016/j.resconrec.2022.106718](https://doi.org/10.1016/j.resconrec.2022.106718)
+            """)
 
     # Main content area
-    col1, col2 = st.columns([1, 1.5], gap="large")
+    col1, col2 = st.columns([1, 1.35], gap="small")
 
     with col1:
-        st.subheader("📁 Data Input")
+        st.markdown("##### Data Input")
 
         mode = st.radio(
             "Input mode",
@@ -484,7 +619,7 @@ def main():
                     st.session_state["status_type"] = "success"
 
             if up:
-                st.success(f"✅ Loaded: {up.name}")
+                st.markdown(f"✅ Loaded: {up.name}")
 
         # ---- Sample tab ----
         else:
@@ -499,12 +634,12 @@ def main():
                     on_change=on_sample_change,  # <-- critical
                 )
                 if sel != "-- Select Sample --":
-                    st.success(f"✅ Loaded sample: {sel}")
+                    st.markdown(f"✅ Loaded sample: {sel}")
             else:
                 st.info("No sample data available")
 
         # ---- Status box ----
-        st.subheader("🚦 Status")
+        st.markdown("##### Status")
         msg = st.session_state.get("status_message", "Ready")
         typ = st.session_state.get("status_type", "info")
         if typ == "success":
@@ -553,11 +688,8 @@ def main():
                     r1, r2 = resample_spectrum(x_raw, y_raw, TARGET_LEN)
 
                     def _is_strictly_increasing(a):
-                        try:
-                            a = np.asarray(a)
-                            return a.ndim == 1  and a.size >= 2 and np.all(np.diff(a) > 0)
-                        except Exception:
-                            return False
+                        a = np.asarray(a)
+                        return a.ndim == 1  and a.size >= 2 and np.all(np.diff(a) > 0)
 
                     if _is_strictly_increasing(r1) and not _is_strictly_increasing(r2):
                         x_resampled, y_resampled = np.asarray(r1), np.asarray(r2)
@@ -592,7 +724,7 @@ def main():
     # Results column
     with col2:
         if st.session_state.get("inference_run_once", False):
-            st.subheader("📊 Analysis Results")
+            st.markdown("##### Analysis Results")
 
             # Get data from session state
             x_raw = st.session_state.get('x_raw')
@@ -650,127 +782,98 @@ def main():
                     predicted_class = LABEL_MAP.get(
                         int(prediction), f"Class {int(prediction)}")
 
-                    # Calculate confidence metrics
+                    # === confidence metrics ===
                     logit_margin = abs(
                         logits_list[0] - logits_list[1]) if len(logits_list) >= 2 else 0
                     confidence_desc, confidence_emoji = get_confidence_description(
                         logit_margin)
 
-                    # Display results
-                    st.markdown("### 🎯 Prediction Results")
-
-                    # Main prediction
-                    st.markdown(f"""
-                    **🔬 Sample**: `{filename}`  
-                    **🧠 Model**: `{model_choice}`  
-                    **⏱️ Processing Time**: `{inference_time:.2f}s`
-                    """)
-
-                    # Prediction box
-                    if predicted_class == "Stable (Unweathered)":
-                        st.success(f"🟢 **Prediction**: {predicted_class}")
-                    else:
-                        st.warning(f"🟡 **Prediction**: {predicted_class}")
-
-                    # Confidence
-                    st.markdown(
-                        f"**{confidence_emoji} Confidence**: {confidence_desc} (margin: {logit_margin:.1f})")
-
-                    # Ground truth comparison
-                    if true_label_idx is not None:
-                        if predicted_class == true_label_str:
-                            st.success(
-                                f"✅ **Ground Truth**: {true_label_str} - **Correct!**")
-                        else:
-                            st.error(
-                                f"❌ **Ground Truth**: {true_label_str} - **Incorrect**")
-                    else:
-                        st.info(
-                            "ℹ️ **Ground Truth**: Unknown (filename doesn't follow naming convention)")
-
-                    # ===display confidence results===
-                    class_labels = ["Stable", "Weathered"]
-                    st.markdown("#### 🔬 Confidence Overview")
-                    def render_confidence_bar(prob, length=20):
-                        filled = int(prob + length)
-                        return "█" * filled + "░" * (length - filled)
-
-                    for i, label in enumerate(class_labels):
-                        st.write(f"**{label}**: {render_confidence_bar(probs[i])} {probs[i]*100:.1f}%")
-
                     # ===Detailed results tabs===
                     tab1, tab2, tab3 = st.tabs(
-                        ["📊 Details", "🔬 Technical", "📘 Explanation"])
+                        ["Details", "Technical", "Explanation"])
 
                     with tab1:
-                        st.markdown("**Model Output (Logits)**")
-                        for i, score in enumerate(logits_list):
-                            label = LABEL_MAP.get(i, f"Class {i}")
-                            st.metric(label, f"{score:.2f}")
+                        # Main prediction
+                        st.markdown(f"""
+                        **Sample**: `{filename}`  
+                        **Model**: `{model_choice}`  
+                        **Processing Time**: `{inference_time:.2f}s`
+                        """)
 
-                        st.markdown("**Spectrum Statistics**")
-                        st.json({
-                            "Original Length": len(x_raw) if x_raw is not None else 0,
-                            "Resampled Length": TARGET_LEN,
-                            "Wavenumber Range": f"{min(x_raw):.1f} - {max(x_raw):.1f} cm⁻¹" if x_raw is not None else "N/A",
-                            "Intensity Range": f"{min(y_raw):.1f} - {max(y_raw):.1f}" if y_raw is not None else "N/A",
-                            "Model Confidence": confidence_desc
-                        })
+                        # ===Prediction box && Confidence Margin===
+                        with st.expander("Prediction/Ground Truth & Model Confidence Margin", expanded=False):
+                            if predicted_class == "Stable (Unweathered)":
+                                st.markdown(f"🟢 **Prediction**: {predicted_class}")
+                            else:
+                                st.markdown(f"🟡 **Prediction**: {predicted_class}")
+                            st.markdown(
+                                f"**{confidence_emoji} Confidence**: {confidence_desc} (margin: {logit_margin:.1f})")
+                            # Ground truth comparison
+                            if true_label_idx is not None:
+                                if predicted_class == true_label_str:
+                                    st.markdown(
+                                        f"✅ **Ground Truth**: {true_label_str} - **Correct!**")
+                                else:
+                                    st.markdown(
+                                        f"❌ **Ground Truth**: {true_label_str} - **Incorrect**")
+                            else:
+                                st.markdown(
+                                    "**Ground Truth**: Unknown (filename doesn't follow naming convention)")
+
+                            st.markdown("###### Confidence Overview")
+                            render_confidence_progress(
+                                probs,
+                                labels=["Stable", "Weathered"],
+                                highlight_idx=int(prediction),
+                                side_by_side=True, # Set false for stacked <<
+                            )
+                        
 
                     with tab2:
-                        st.markdown("**Technical Information**")
-                        model_path = MODEL_CONFIG[model_choice]["path"]
-                        mtime = os.path.getmtime(model_path) if os.path.exists(
-                            model_path) else "N/A"
-                        file_hash = hashlib.md5(open(model_path, 'rb').read(
-                        )).hexdigest() if os.path.exists(model_path) else "N/A"
-                        st.json({
-                            "Model Architecture": model_choice,
-                            "Model Path": model_path,
-                            "Weights Last Modified": time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(mtime)) if mtime != "N/A" else "N/A",
-                            "Weights Hash": file_hash,
-                            "Input Shape": list(input_tensor.shape),
-                            "Output Shape": list(logits.shape),
-                            "Inference Time": f"{inference_time:.3f}s",
-                            "Device": "CPU",
-                            "Model Loaded": model_loaded
-                        })
+                        with st.expander("Diagnostics/Technical Info (advanced)", expanded=False):
+                            st.markdown("###### Model Output (Logits)")
+                            cols = st.columns(2)
+                            for i, score in enumerate(logits_list):
+                                label = LABEL_MAP.get(i, f"Class {i}")
+                                (cols[i % 2]).metric(label, f"{score:.2f}")
 
-                        if not model_loaded:
-                            st.warning(
-                                "⚠️ Demo mode: Using randomly initialized weights")
+                            st.markdown("###### Spectrum Statistics")
+                            spec_stats = {
+                                "Original Length": len(x_raw) if x_raw is not None else 0,
+                                "Resampled Length": TARGET_LEN,
+                                "Wavenumber Range": f"{min(x_raw):.1f}–{max(x_raw):.1f} cm⁻¹" if x_raw is not None else "N/A",
+                                "Intensity Range": f"{min(y_raw):.1f}–{max(y_raw):.1f}" if y_raw is not None else "N/A",
+                                "Confidence Bucket": confidence_desc,
+                            }
+                            render_kv_grid(spec_stats, ncols=2)
+                            st.markdown("---")
 
-                        # Debug log
-                        st.markdown("**Debug Log**")
-                        st.text_area("Logs", "\n".join(
-                            st.session_state.get("log_messages", [])), height=200)
+                            st.markdown("###### Model Statistics")
+                            model_path = MODEL_CONFIG[model_choice]["path"]
+                            mtime = os.path.getmtime(model_path) if os.path.exists(model_path) else None
+                            file_hash = (
+                                hashlib.md5(open(model_path, 'rb').read()).hexdigest()
+                                if os.path.exists(model_path) else "N/A"
+                            )
+                            model_stats = {
+                                "Architecture": model_choice,
+                                "Model Path": model_path,
+                                "Weights Last Modified": time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(mtime)) if mtime else "N/A",
+                                "Weights Hash (md5)": file_hash,
+                                "Input Shape": list(input_tensor.shape),
+                                "Output Shape": list(logits.shape),
+                                "Inference Time": f"{inference_time:.3f}s",
+                                "Device": "CPU",
+                                "Model Loaded": model_loaded,
+                            }
+                            render_kv_grid(model_stats, ncols=2)
 
-                        try:
-                            resampler_mod = getattr(resample_spectrum, "__module__", "unknown")
-                            resampler_doc = getattr(resample_spectrum, "__doc__", None)
-                            resampler_doc = resampler_doc.splitlines()[0] if isinstance(resampler_doc, str) and resampler_doc else "no doc"
+                            st.markdown("---")
 
-                            y_rs = st.session_state.get("y_resampled", None)
-                            diag = {}
-                            if y_rs is not None:
-                                arr = np.asarray(y_rs)
-                                diag = {
-                                    "y_resampled_len": int(arr.size),
-                                    "y_resampled_min": float(np.min(arr)) if arr.size else None,
-                                    "y_resampled_max": float(np.max(arr)) if arr.size else None,
-                                    "y_resampled_ptp": float(np.ptp(arr)) if arr.size else None,
-                                    "y_resampled_unique": int(np.unique(arr).size) if arr.size else None,
-                                    "y_resampled_all_equal": bool(np.ptp(arr) == 0.0) if arr.size else None,
-                                }
 
-                            st.markdown("**Resampler Info")
-                            st.json({
-                                "module": resampler_mod,
-                                "doc": resampler_doc,
-                                **({"y_resampled_stats": diag} if diag else {})
-                            })
-                        except Exception as _e:
-                            st.warning(f"Diagnostics skipped: {_e}")
+                            st.markdown("###### Debug Log")
+                            st.text_area("Logs", "\n".join(st.session_state.get("log_messages", [])), height=110)
+
 
                     with tab3:
                         st.markdown("""
@@ -803,21 +906,19 @@ def main():
                 st.error(
                     "❌ Missing spectrum data. Please upload a file and run analysis.")
         else:
-            # Welcome message
+            # ===Getting Started===
             st.markdown("""
-            ### 👋 Welcome to AI Polymer Classification
+            ##### Get started by:
+            1. Select an AI model in the sidebar
+            2. Upload a Raman spectrum file or choose a sample
+            3. Click "Run Analysis" to get predictions
             
-            **Get started by:**
-            1. 🧠 Select an AI model in the sidebar
-            2. 📁 Upload a Raman spectrum file or choose a sample
-            3. ▶️ Click "Run Analysis" to get predictions
-            
-            **Supported formats:**
+            ##### Supported formats:
             - Text files (.txt) with wavenumber and intensity columns
             - Space or comma-separated values
             - Any length (automatically resampled to 500 points)
             
-            **Example applications:**
+            ##### Example applications:
             - 🔬 Research on polymer degradation
             - ♻️ Recycling feasibility assessment
             - 🌱 Sustainability impact studies
