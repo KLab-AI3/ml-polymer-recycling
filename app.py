@@ -58,7 +58,7 @@ div[data-testid="stTabs"] > div[role="tablist"] + div { min-height: 420px; }
 /* Clean key–value rows for technical info */
 .kv-row { display:flex; justify-content:space-between;
   border-bottom: 1px dotted rgba(0,0,0,.10); padding: 3px 0; gap: 12px; }
-.kv-key { opacity:.75; font-size: 0.92rem; white-space: nowrap; }
+.kv-key { opacity:.75; font-size: 0.95rem; white-space: nowrap; }
 .kv-val { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   overflow-wrap: anywhere; }
 
@@ -79,7 +79,7 @@ div.stExpander > details > summary {
   margin: 6px 0;
   background: rgba(0,0,0,0.04);
   font-weight: 600;
-  font-size: 0.92rem;
+  font-size: 0.95rem;
 }
 
 /* Remove ugly default disclosure triangle */
@@ -113,15 +113,17 @@ div.stExpander > details > summary::after {
   color: #111827;
 }
 
-/* === Variants by Keyword === */
-div.stExpander:has(summary:contains("Prediction")) > details > summary {
+/* === Stable cross-browser expander behavior  === */
+.expander-marker + div[data-testid="stExpander"] summary {
   border-left-color: #2e7d32;
   background: rgba(46,125,50,0.08);
 }
-div.stExpander:has(summary:contains("Prediction")) > details > summary::after {
+.expander-marker + div[data-testid="stExpander"] summary::after {
   content: "RESULTS";
-  background: rgba(46,125,50,0.15); color: #184a1d;
+  background: rgba(46,125,50,0.15);
+  color: #184a1d;
 }
+
 
 div.stExpander:has(summary:contains("Technical")) > details > summary {
   border-left-color: #ed6c02;
@@ -145,7 +147,7 @@ div[data-testid="stMetricLabel"] {
 
 /* Sidebar expander text */
 section[data-testid="stSidebar"] .stMarkdown p {
-  font-size: 0.92rem !important;
+  font-size: 0.95rem !important;
   line-height: 1.4;
 }
 
@@ -211,6 +213,7 @@ def init_session_state():
         "log_messages": [],
         "uploader_version": 0,
         "current_upload_key": "upload_txt_0",
+        "active_tab": "Details",
     }
     for k, v in defaults.items():
         st.session_state.setdefault(k, v)
@@ -285,6 +288,27 @@ def cleanup_memory():
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
 
+@st.cache_data
+def run_inference(y_resampled, model_choice, _cache_key=None):
+    """Run model inference and cache results"""
+    model, model_loaded = load_model(model_choice)
+    if not model_loaded:
+        return None, None, None, None, None
+
+    input_tensor = torch.tensor(y_resampled, dtype=torch.float32).unsqueeze(0).unsqueeze(0)
+    start_time = time.time()
+    model.eval()
+    with torch.no_grad():
+        if model is None:
+            raise ValueError("Model is not loaded. Please check the model configuration or weights.")
+        logits = model(input_tensor)
+        prediction = torch.argmax(logits, dim=1).item()
+        logits_list = logits.detach().numpy().tolist()[0]
+        probs = F.softmax(logits.detach(), dim=1).cpu().numpy().flatten()
+    inference_time = time.time() - start_time
+    cleanup_memory()
+    return prediction, logits_list, probs, inference_time,  logits
+
 
 @st.cache_data
 def get_sample_files():
@@ -341,8 +365,8 @@ def parse_spectrum_data(raw_text):
 
     return x, y
 
-
-def create_spectrum_plot(x_raw, y_raw, x_resampled, y_resampled):
+@st.cache_data
+def create_spectrum_plot(x_raw, y_raw, x_resampled, y_resampled, _cache_key=None):
     """Create spectrum visualization plot"""
     fig, ax = plt.subplots(1, 2, figsize=(13, 5), dpi=100)
 
@@ -370,15 +394,13 @@ def create_spectrum_plot(x_raw, y_raw, x_resampled, y_resampled):
     plt.close(fig)  # Prevent memory leaks
 
     return Image.open(buf)
-        
-def _pct(p: float) -> str:
-    # Fixed-width percent like " 98.7%" or "  2.3%"
-    return f"{float(p)*100:5.1f}%"
+
+from typing import Union
 
 def render_confidence_progress(
     probs: np.ndarray,
     labels: list[str] = ["Stable", "Weathered"],
-    highlight_idx: int | None = None,
+    highlight_idx: Union[int, None] = None,
     side_by_side: bool = True
 ):
     """Render Streamlit native progress bars (0 - 100). Optionally bold the winning class
@@ -400,10 +422,6 @@ def render_confidence_progress(
         for i, (lbl, val) in enumerate(zip(labels, p)):
             st.markdown(_title(i, lbl, float(val)))
             st.progress(int(round(val * 100)))
-
-
-
-
 
 
 def render_kv_grid(d: dict, ncols: int = 2):
@@ -731,81 +749,83 @@ def main():
             filename = st.session_state.get('filename', 'Unknown')
 
             if all(v is not None for v in [x_raw, y_raw, y_resampled]):
+                # ===Run inference===
 
-                # Create and display plot
-                try:
-                    spectrum_plot = create_spectrum_plot(x_raw, y_raw, x_resampled, y_resampled)
-                    st.image(
-                        spectrum_plot, caption="Spectrum Preprocessing Results", use_container_width=True)
-                except (ValueError, RuntimeError, TypeError) as e:
-                    st.warning(f"Could not generate plot: {e}")
-                    log_message(f"Plot generation error: {e}")
+                if y_resampled is None:
+                    raise ValueError("y_resampled is None. Ensure spectrum data is properly resampled before proceeding.")
+                cache_key = hashlib.md5(f"{y_resampled.tobytes()}{model_choice}".encode()).hexdigest()
+                prediction, logits_list, probs, inference_time, logits = run_inference(
+                    y_resampled, model_choice, _cache_key=cache_key
+                )
+                if prediction is None:
+                    st.error("❌ Inference failed: Model not loaded. Please check that weights are available.")
+                    st.stop()  # prevents the rest of the code in this block from executing
 
-                # Run inference
-                try:
-                    with st.spinner("Running AI inference..."):
-                        start_time = time.time()
+                log_message(f"Inference completed in {inference_time:.2f}s, prediction: {prediction}")
 
-                        # Prepare input tensor
-                        input_tensor = torch.tensor(
-                            y_resampled, dtype=torch.float32).unsqueeze(0).unsqueeze(0)
+                # ===Get ground truth===
+                true_label_idx = label_file(filename)
+                true_label_str = LABEL_MAP.get(
+                    true_label_idx, "Unknown") if true_label_idx is not None else "Unknown"
+                # ===Get prediction===
+                predicted_class = LABEL_MAP.get(
+                    int(prediction), f"Class {int(prediction)}")
+                # === confidence metrics ===
+                logit_margin = abs(
+                    (logits_list[0] - logits_list[1]) if logits_list is not None and len(logits_list) >= 2 else 0
+                )
+                confidence_desc, confidence_emoji = get_confidence_description(logit_margin)
 
-                        # Run inference
-                        model.eval()
-                        with torch.no_grad():
-                            if model is None:
-                                raise ValueError(
-                                    "Model is not loaded. Please check the model configuration or weights.")
-                            logits = model(input_tensor)
-                            prediction = torch.argmax(logits, dim=1).item()
-                            logits_list = logits.detach().numpy().tolist()[0]
+                #===Precompute Stats===
+                spec_stats = {
+                    "Original Length": len(x_raw) if x_raw is not None else 0,
+                    "Resampled Length": TARGET_LEN,
+                    "Wavenumber Range": f"{min(x_raw):.1f}-{max(x_raw):.1f} cm⁻¹" if x_raw is not None else "N/A",
+                    "Intensity Range": f"{min(y_raw):.1f}-{max(y_raw):.1f} cm⁻¹" if y_raw is not None else "N/A",
+                    "Confidence Bucket": confidence_desc,
+                }
+                model_path = MODEL_CONFIG[model_choice]["path"]
+                mtime = os.path.getmtime(model_path) if os.path.exists(model_path) else None
+                file_hash = (
+                    hashlib.md5(open(model_path, 'rb').read()).hexdigest()
+                    if os.path.exists(model_path) else "N/A"
+                )
+                input_tensor = torch.tensor(y_resampled, dtype=torch.float32).unsqueeze(0).unsqueeze(0)
+                model_stats =  {
+                    "Architecture": model_choice,
+                    "Model Path": model_path,
+                    "Weights Last Modified": time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(mtime)) if mtime else "N/A",
+                    "Weights Hash (md5)": file_hash,
+                    "Input Shape": list(input_tensor.shape),
+                    "Output Shape": list(logits.shape) if logits is not None else "N/A",
+                    "Inference Time": f"{inference_time:.3f}s",
+                    "Device": "CPU",
+                    "Model Loaded": model_loaded,
+                }
 
-                        probs = F.softmax(logits.detach(), dim=1).cpu().numpy().flatten()
+                start_render = time.time()
 
-
-                        inference_time = time.time() - start_time
-                        log_message(
-                            f"Inference completed in {inference_time:.2f}s, prediction: {prediction}")
-
-                        # Clean up memory
-                        cleanup_memory()
-
-                    # Get ground truth if available
-                    true_label_idx = label_file(filename)
-                    true_label_str = LABEL_MAP.get(
-                        true_label_idx, "Unknown") if true_label_idx is not None else "Unknown"
-
-                    # Get prediction
-                    predicted_class = LABEL_MAP.get(
-                        int(prediction), f"Class {int(prediction)}")
-
-                    # === confidence metrics ===
-                    logit_margin = abs(
-                        logits_list[0] - logits_list[1]) if len(logits_list) >= 2 else 0
-                    confidence_desc, confidence_emoji = get_confidence_description(
-                        logit_margin)
-
-                    # ===Detailed results tabs===
-                    tab1, tab2, tab3 = st.tabs(
-                        ["Details", "Technical", "Explanation"])
-
-                    with tab1:
-                        # Main prediction
+                active_tab = st.selectbox(
+                    "View Results",
+                    ["Details", "Technical", "Explanation"],
+                    key="active_tab",   # reuse the key you were managing manually
+                )
+                
+                if active_tab == "Details":
+                    with st.container():
                         st.markdown(f"""
                         **Sample**: `{filename}`  
                         **Model**: `{model_choice}`  
                         **Processing Time**: `{inference_time:.2f}s`
                         """)
-
-                        # ===Prediction box && Confidence Margin===
-                        with st.expander("Prediction/Ground Truth & Model Confidence Margin", expanded=False):
+                        st.markdown("<div class='expander-marker expander-success'></div>", unsafe_allow_html=True)
+                        with st.expander("Prediction/Ground Truth & Model Confidence Margin", expanded=True):
                             if predicted_class == "Stable (Unweathered)":
                                 st.markdown(f"🟢 **Prediction**: {predicted_class}")
                             else:
                                 st.markdown(f"🟡 **Prediction**: {predicted_class}")
                             st.markdown(
                                 f"**{confidence_emoji} Confidence**: {confidence_desc} (margin: {logit_margin:.1f})")
-                            # Ground truth comparison
                             if true_label_idx is not None:
                                 if predicted_class == true_label_str:
                                     st.markdown(
@@ -819,85 +839,69 @@ def main():
 
                             st.markdown("###### Confidence Overview")
                             render_confidence_progress(
-                                probs,
+                                probs if probs is not None else np.array([]),
                                 labels=["Stable", "Weathered"],
                                 highlight_idx=int(prediction),
                                 side_by_side=True, # Set false for stacked <<
                             )
-                        
 
-                    with tab2:
-                        with st.expander("Diagnostics/Technical Info (advanced)", expanded=False):
+                elif active_tab == "Technical":
+                    with st.container():
+                        st.markdown("<div class='expander-marker expander-success'></div>", unsafe_allow_html=True)
+                        with st.expander("Diagnostics/Technical Info (advanced)", expanded=True):
                             st.markdown("###### Model Output (Logits)")
                             cols = st.columns(2)
-                            for i, score in enumerate(logits_list):
-                                label = LABEL_MAP.get(i, f"Class {i}")
-                                (cols[i % 2]).metric(label, f"{score:.2f}")
-
+                            if logits_list is not None:
+                                for i, score in enumerate(logits_list):
+                                    label = LABEL_MAP.get(i, f"Class {i}")
+                                    cols[i % 2].metric(label, f"{score:.2f}")
                             st.markdown("###### Spectrum Statistics")
-                            spec_stats = {
-                                "Original Length": len(x_raw) if x_raw is not None else 0,
-                                "Resampled Length": TARGET_LEN,
-                                "Wavenumber Range": f"{min(x_raw):.1f}–{max(x_raw):.1f} cm⁻¹" if x_raw is not None else "N/A",
-                                "Intensity Range": f"{min(y_raw):.1f}–{max(y_raw):.1f}" if y_raw is not None else "N/A",
-                                "Confidence Bucket": confidence_desc,
-                            }
                             render_kv_grid(spec_stats, ncols=2)
                             st.markdown("---")
-
                             st.markdown("###### Model Statistics")
-                            model_path = MODEL_CONFIG[model_choice]["path"]
-                            mtime = os.path.getmtime(model_path) if os.path.exists(model_path) else None
-                            file_hash = (
-                                hashlib.md5(open(model_path, 'rb').read()).hexdigest()
-                                if os.path.exists(model_path) else "N/A"
-                            )
-                            model_stats = {
-                                "Architecture": model_choice,
-                                "Model Path": model_path,
-                                "Weights Last Modified": time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(mtime)) if mtime else "N/A",
-                                "Weights Hash (md5)": file_hash,
-                                "Input Shape": list(input_tensor.shape),
-                                "Output Shape": list(logits.shape),
-                                "Inference Time": f"{inference_time:.3f}s",
-                                "Device": "CPU",
-                                "Model Loaded": model_loaded,
-                            }
                             render_kv_grid(model_stats, ncols=2)
-
                             st.markdown("---")
-
-
                             st.markdown("###### Debug Log")
                             st.text_area("Logs", "\n".join(st.session_state.get("log_messages", [])), height=110)
 
+                elif active_tab == "Explanation":
+                    with st.container():
+                            st.markdown("""
+                            **🔍 Analysis Process**
+                        
+                            1. **Data Upload**: Raman spectrum file loaded
+                            2. **Preprocessing**: Data parsed and resampled to 500 points
+                            3. **AI Inference**: CNN model analyzes spectral patterns
+                            4. **Classification**: Binary prediction with confidence scores
+                            
+                            **🧠 Model Interpretation**
+                            
+                            The AI model identifies spectral features indicative of:
+                            - **Stable polymers**: Well-preserved molecular structure
+                            - **Weathered polymers**: Degraded/oxidized molecular bonds
+                            
+                            **🎯 Applications**
+                            
+                            - Material longevity assessment
+                            - Recycling viability evaluation  
+                            - Quality control in manufacturing
+                            - Environmental impact studies
+                            """)
 
-                    with tab3:
-                        st.markdown("""
-                        **🔍 Analysis Process**
-                        
-                        1. **Data Upload**: Raman spectrum file loaded
-                        2. **Preprocessing**: Data parsed and resampled to 500 points
-                        3. **AI Inference**: CNN model analyzes spectral patterns
-                        4. **Classification**: Binary prediction with confidence scores
-                        
-                        **🧠 Model Interpretation**
-                        
-                        The AI model identifies spectral features indicative of:
-                        - **Stable polymers**: Well-preserved molecular structure
-                        - **Weathered polymers**: Degraded/oxidized molecular bonds
-                        
-                        **🎯 Applications**
-                        
-                        - Material longevity assessment
-                        - Recycling viability evaluation  
-                        - Quality control in manufacturing
-                        - Environmental impact studies
-                        """)
+                    render_time = time.time() - start_render
+                    log_message(f"col2 rendered in {render_time:.2f}s, active tab: {active_tab}")
 
-                except (ValueError, RuntimeError) as e:
-                    st.error(f"❌ Inference failed: {str(e)}")
-                    log_message(f"Inference error: {str(e)}")
+                st.markdown("<div class='expander-marker expander-success'></div>", unsafe_allow_html=True)
+                with st.expander("Spectrum Preprocessing Results", expanded=False):
+                    # Create and display plot
+                    cache_key = hashlib.md5(
+                        f"{(x_raw.tobytes() if x_raw is not None else b'')}"
+                        f"{(y_raw.tobytes() if y_raw is not None else b'')}"
+                        f"{(x_resampled.tobytes() if x_resampled is not None else b'')}"
+                        f"{(y_resampled.tobytes() if y_resampled is not None else b'')}".encode()
+                    ).hexdigest()
+                    spectrum_plot = create_spectrum_plot(x_raw, y_raw, x_resampled, y_resampled, _cache_key=cache_key)
+                    st.image(spectrum_plot, caption="Spectrum Preprocessing Results", use_container_width=True)
 
             else:
                 st.error(
