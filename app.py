@@ -1,3 +1,18 @@
+"""
+AI-Driven Polymer Aging Prediction and Classification
+Hugging Face Spaces Deployment
+
+This Streamlit app provides an interface for classifying polymer degradation
+using deep learning models trained on Raman spectroscopy data.
+
+Features:
+- Single file and batch upload processing
+- Multiple CNN model architectures
+- Results export to CSV/JSON
+- Enhanced confidence visualization
+- Session-wide results management
+"""
+
 from models.resnet_cnn import ResNet1D
 from models.figure2_cnn import Figure2CNN
 import hashlib
