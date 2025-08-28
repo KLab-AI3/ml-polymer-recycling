@@ -58,7 +58,7 @@ ml-polymer-recycling/
 | **Image** | Planned Expansion    | N/A                |
 | **FTIR**  | Reactivating Modules Soon | N/A                |
 
-## 🔬 Key Features
+## Key Features
 
 - 10-Fold Stratified Cross-Validation
 - CLI Training: `train_model.py`
@@ -194,7 +194,7 @@ These files are intentionally excluded from version control via `.gitignore`
 
    This guarantees FTIR becomes a supported modality without undermining the validated Raman foundation.
 
-## 🔑 Guiding Principles
+## Guiding Principles
 
 - **Preserve the Raman baseline** as the reproducible ground truth
 - **Additive modularity**: Models, images, and FTIR added as clean, distinct layers rather than overwriting core functionality
