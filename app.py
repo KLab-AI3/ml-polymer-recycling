@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 import matplotlib
 import numpy as np
 import torch
+import torch.nn.functional as F
 import streamlit as st
 import os
 import sys
@@ -256,6 +257,11 @@ def create_spectrum_plot(x_raw, y_raw, x_resampled, y_resampled):
 
     return Image.open(buf)
 
+def render_confidence_bar(probabilities, class_labels):
+    bar = lambda p: "█" * int(p * 20)
+    for label, prob in zip(class_labels, probabilities):
+        st.write(f"**{label}**: {bar(prob)} {prob*100:.1f}%")
+
 
 def get_confidence_description(logit_margin):
     """Get human-readable confidence description"""
@@ -268,7 +274,6 @@ def get_confidence_description(logit_margin):
     else:
         return "LOW", "🔴"
 
-
 def log_message(msg: str):
     """Append a timestamped line to the in-app log, creating the buffer if needed."""
     if "log_messages" not in st.session_state or st.session_state["log_messages"] is None:
@@ -277,14 +282,9 @@ def log_message(msg: str):
         f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] {msg}"
     )
 
-
 def trigger_run():
     """Set a flag so we can detect button press reliably across reruns"""
     st.session_state['run_requested'] = True
-
-
-
-
 
 def on_sample_change():
     """Read selected sample once and persist as text."""
@@ -304,7 +304,6 @@ def on_sample_change():
         st.session_state["status_message"] = f"❌ Error loading sample: {e}"
         st.session_state["status_type"] = "error"
 
-
 def on_input_mode_change():
     """Reset sample when switching to Upload"""
     if st.session_state["input_mode"] == "Upload File":
@@ -312,11 +311,9 @@ def on_input_mode_change():
     # 🔧 Reset when switching modes to prevent stale right-column visuals
     reset_results("Switched input mode")
 
-
 def on_model_change():
     """Force the right column back to init state when the model changes"""
     reset_results("Model changed")
-
 
 def reset_results(reason: str = ""):
     """Clear previous inference artifacts so the right column returns to initial state."""
@@ -358,6 +355,23 @@ def reset_ephemeral_state():
     st.session_state["status_type"] = "info"
     
     st.rerun()
+
+def plot_confidence_bar(probabilities: list[float], class_labels: list[str]) -> None:
+    """Renders a horizontal bar chart of prediction confidences per class."""
+    fig, ax = plt.subplots(figsize=(4, 1.5))
+    bars = ax.barh(class_labels, probabilities, color=[
+        "green" if i == np.argmax(probabilities) else "gray"
+        for i in range(len(probabilities))
+    ])
+    ax.set_xlabel("Confidence")
+    ax.set_title("Prediction Confidence")
+    ax.xaxis.set_ticks([0, 0.5, 1.0])
+    ax.set_xlim(0, 1.0)
+    for i, (label, prob) in enumerate(zip(class_labels, probabilities)):
+        ax.text(prob + 0.01, i, f"{prob*100:.1f}%", va='center', fontsize=8)
+
+    st.pyplot(fig)
+
 
 # Main app
 def main():
@@ -617,6 +631,9 @@ def main():
                             prediction = torch.argmax(logits, dim=1).item()
                             logits_list = logits.detach().numpy().tolist()[0]
 
+                        probs = F.softmax(logits.detach(), dim=1).cpu().numpy().flatten()
+
+
                         inference_time = time.time() - start_time
                         log_message(
                             f"Inference completed in {inference_time:.2f}s, prediction: {prediction}")
@@ -671,7 +688,11 @@ def main():
                         st.info(
                             "ℹ️ **Ground Truth**: Unknown (filename doesn't follow naming convention)")
 
-                    # Detailed results tabs
+                    # ===display confidence results===
+                    class_labels = ["Stable", "Weathered"]
+                    plot_confidence_bar(probabilities=probs.tolist(), class_labels=class_labels)
+
+                    # ===Detailed results tabs===
                     tab1, tab2, tab3 = st.tabs(
                         ["📊 Details", "🔬 Technical", "📘 Explanation"])
 
