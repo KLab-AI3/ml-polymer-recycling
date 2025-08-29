@@ -100,25 +100,25 @@ def create_confidence_progress_html(
             color = "#e5e7eb"  # gray-200
             text_color = "#6b7280"  # gray-500
 
-            percentage = prob * 100
+        percentage = prob * 100
 
-            html_parts.append(f"""
-            <div style="margin-bottom: 8px;">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
-                    <span style="font-size: 0.875rem; font-weight: 500; color: #374151;">{label}</span>
-                    <span style="font-size: 0.875rem; color: #6b7280;">{percentage:.1f}%</span>
-                </div>
-                <div style="width: 100%; background-color: #f3f4f6; border-radius: 0.375rem; height: 20px; overflow: hidden;">
-                    <div style="
-                        width: {percentage}%; 
-                        height: 100%; 
-                        background-color: {color}; 
-                        display: flex; 
-                        align-items: center; 
-                        justify-content: center;
-                        transition: width 0.3s ease;
-                    ">
-                        {f'<span style="color: {text_color}; font-size: 0.75rem; font-weight: 600;">{percentage:.1f}%</span>' if percentage > 20 else ''}
+        html_parts.append(f"""
+        <div style="margin-bottom: 8px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                <span style="font-size: 0.875rem; font-weight: 500; color: #374151;">{label}</span>
+                <span style="font-size: 0.875rem; color: #6b7280;">{percentage:.1f}%</span>
+            </div>
+            <div style="width: 100%; background-color: #f3f4f6; border-radius: 0.375rem; height: 20px; overflow: hidden;">
+                <div style="
+                    width: {percentage}%; 
+                    height: 100%; 
+                    background-color: {color}; 
+                    display: flex; 
+                    align-items: center; 
+                    justify-content: center;
+                    transition: width 0.3s ease;
+                ">
+                    {f'<span style="color: {text_color}; font-size: 0.75rem; font-weight: 600;">{percentage:.1f}%</span>' if percentage > 20 else ''}
                 </div>
             </div>
         </div>
