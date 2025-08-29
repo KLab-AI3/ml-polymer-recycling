@@ -21,18 +21,22 @@ if utils_path.is_dir() and str(utils_path) not in sys.path:
     sys.path.append(str(utils_path))
 matplotlib.use("Agg")  # ensure headless rendering in Spaces
 
-# Import local modules
+#==Import local modules + new modules==
 from utils.preprocessing import resample_spectrum
+from utils.errors import ErrorHandler, safe_execute
+from utils.results_manager import ResultsManager
+from utils.confidence import calculate_softmax_confidence, get_confidence_badge, create_confidence_progress_html
+from utils.multifile import create_batch_uploader, process_multiple_files, display_batch_results
 
 KEEP_KEYS = {
-    # === global UI context we want to keep after "Reset" ===
+    # ==global UI context we want to keep after "Reset"==
     "model_select",     # sidebar model key
     "input_mode",       # radio for Upload|Sample
     "uploader_version", # version counter for file uploader
     "input_registry",   # radio controlling Upload vs Sample
 }
 
-# Configuration
+#==Page Configuration==
 st.set_page_config(
     page_title="ML Polymer Classification",
     page_icon="🔬",
@@ -40,6 +44,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+#==Custom CSS Page + Element Styling==
 st.markdown("""
 <style>
 /* Keep only scoped utility styles; no .block-container edits */
@@ -164,7 +169,7 @@ div[data-testid="stMetricLabel"] {
 """, unsafe_allow_html=True)
 
 
-# Constants
+#==CONSTANTS==
 TARGET_LEN = 500
 SAMPLE_DATA_DIR = Path("sample_data")
 # Prefer env var, else 'model_weights' if present; else canonical 'outputs'
@@ -193,11 +198,11 @@ MODEL_CONFIG = {
     }
 }
 
-# Label mapping
+#==Label mapping==
 LABEL_MAP = {0: "Stable (Unweathered)", 1: "Weathered (Degraded)"}
 
 
-# === UTILITY FUNCTIONS ===
+#==UTILITY FUNCTIONS==
 def init_session_state():
     """Keep a persistent session state"""
     defaults = {
@@ -214,6 +219,7 @@ def init_session_state():
         "uploader_version": 0,
         "current_upload_key": "upload_txt_0",
         "active_tab": "Details",
+        "batch_mode": False # Track if in batch mode
     }
     for k, v in defaults.items():
         st.session_state.setdefault(k, v)
@@ -221,6 +227,9 @@ def init_session_state():
     for key, default_value in defaults.items():
         if key not in st.session_state:
             st.session_state[key] = default_value
+
+    #==Initialize results table==
+    ResultsManager.init_results_table()
 
 
 def label_file(filename: str) -> int:
@@ -471,11 +480,7 @@ def get_confidence_description(logit_margin):
 
 def log_message(msg: str):
     """Append a timestamped line to the in-app log, creating the buffer if needed."""
-    if "log_messages" not in st.session_state or st.session_state["log_messages"] is None:
-        st.session_state["log_messages"] = []
-    st.session_state["log_messages"].append(
-        f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] {msg}"
-    )
+    ErrorHandler.log_info(msg)
 
 def trigger_run():
     """Set a flag so we can detect button press reliably across reruns"""
@@ -605,13 +610,13 @@ def main():
 
         mode = st.radio(
             "Input mode",
-            ["Upload File", "Sample Data"],
+            ["Upload File", "Batch Upload", "Sample Data"],
             key="input_mode",
             horizontal=True,
             on_change=on_input_mode_change
         )
 
-        # ---- Upload tab ----
+        #==Upload tab==
         if mode == "Upload File":
             upload_key = st.session_state["current_upload_key"]
             up = st.file_uploader(
@@ -621,7 +626,7 @@ def main():
                 key=upload_key,     # ← versioned key
             )
 
-            # == process change immediately (no on_change; simpler & reliable) ==
+            #==Process change immediately (no on_change; simpler & reliable)==
             if up is not None:
                 raw = up.read()
                 text = raw.decode("utf-8") if isinstance(raw, bytes) else raw
@@ -630,15 +635,29 @@ def main():
                     st.session_state["input_text"] = text 
                     st.session_state["filename"] = getattr(up, "name", "uploaded.txt")
                     st.session_state["input_source"] = "upload"
+                    st.session_state["batch_mode"] = False
 
                     # == clear right column immediately ==
                     reset_results("New file selected")
                     st.session_state["status_message"] = f"📁 File '{st.session_state['filename']}' ready for analysis"
                     st.session_state["status_type"] = "success"
+        #==Batch Upload tab==
+        elif mode == "Batch Upload":
+            st.session_state["batch_mode"] = True
+            uploaded_files = create_batch_uploader()
 
+            if uploaded_files:
+                st.success(f"{len(uploaded_files)} files selected for batch processing")
+                st.session_state["batch_files"] = uploaded_files
+                st.session_state["status_message"] = f"{len(uploaded_files)} ready for batch analysis"
+                st.session_state["status_type"] = "success"
+            else:
 
-        # ---- Sample tab ----
-        else:
+                st.session_state["batch_files"] = []
+                
+        #==Sample tab==
+        elif mode == "Sample Data":
+            st.session_state["batch_mode"] = False
             sample_files = get_sample_files()
             if sample_files:
                 options = ["-- Select Sample --"] + \
@@ -647,14 +666,14 @@ def main():
                     "Choose sample spectrum:",
                     options,
                     key="sample_select",
-                    on_change=on_sample_change,  # <-- critical
+                    on_change=on_sample_change,  # <- critical
                 )
                 if sel != "-- Select Sample --":
                     st.markdown(f"✅ Loaded sample: {sel}")
             else:
                 st.info("No sample data available")
 
-        # ---- Status box ----
+        #==Status box==
         msg = st.session_state.get("status_message", "Ready")
         typ = st.session_state.get("status_type", "info")
         if typ == "success":
@@ -664,14 +683,19 @@ def main():
         else:
             st.info(msg)
 
-        # ---- Model load ----
+        #==Model load==
         model, model_loaded = load_model(model_choice)
         if not model_loaded:
             st.warning("⚠️ Model weights not available - using demo mode")
 
-        # Ready to run if we have text and a model
-        inference_ready = bool(st.session_state.get(
-            "input_text")) and (model is not None)
+        #==Ready to run if we have text (single) or files (batch) and a model==|
+        is_batch_mode = st.session_state.get("batch_mode", False)
+        batch_files = st.session_state.get("batch_files", [])
+
+        inference_ready = False  # Initialize with a default value
+        if is_batch_mode:
+            inference_ready = len(batch_files) > 0 and (model is not None)
+            button_text = "Run Analysis"
 
         # === Run Analysis (form submit batches state) ===
         with st.form("analysis_form", clear_on_submit=False):
@@ -687,58 +711,110 @@ def main():
             
 
         if submitted and inference_ready:
-            # parse → preprocess → predict → render
-            # Handles the submission of the analysis form and performs spectrum data processing
-            try:
-                raw_text = st.session_state["input_text"]
-                filename = st.session_state.get("filename") or "unknown.txt"
+            if is_batch_mode:
+                #==Batch Mode Processing==|
 
-                # Parse
-                with st.spinner("Parsing spectrum data..."):
-                    x_raw, y_raw = parse_spectrum_data(raw_text)
+                with st.spinner(f"Processing {len(batch_files)} files ..."):
+                    progress_bar = st.progress(0)
+                    status_text = st.empty()
+                    def progress_callback(current, total, filename):
+                        progress = current / total if total > 0 else 0
+                        progress_bar.progress(progress)
 
-                # Resample
-                with st.spinner("Resampling spectrum..."):
-                    # ===Resample Unpack===
-                    r1, r2 = resample_spectrum(x_raw, y_raw, TARGET_LEN)
+                        status_text.text(f"Processing: {filename} ({current}/{total})")
 
-                    def _is_strictly_increasing(a):
-                        a = np.asarray(a)
-                        return a.ndim == 1  and a.size >= 2 and np.all(np.diff(a) > 0)
+                        #=Process all files=
+                        batch_results = process_multiple_files(
+                            batch_files,
+                            model_choice,
+                            load_model,
+                            run_inference,
+                            label_file,
+                            progress_callback
+                        )
 
-                    if _is_strictly_increasing(r1) and not _is_strictly_increasing(r2):
-                        x_resampled, y_resampled = np.asarray(r1), np.asarray(r2)
-                    elif _is_strictly_increasing(r2) and not _is_strictly_increasing(r1):
-                        x_resampled, y_resampled = np.asarray(r2), np.asarray(r1)
-                    else:
-                        # == Ambigous; assume (x, y) and log
-                        x_resampled, y_resampled = np.asarray(r1), np.asarray(r2)
-                        log_message("Resample outputs ambigous; assumed (x, y).")
+                        progress_bar.progress(1.0)
 
-                    # ===Persists for plotting + inference===
+                        status_text.text("Batch processing complete!")
+
+                        #=Update session state=
+                        st.session_state["batch_results"] = batch_results
+                        st.session_state["inference_run_once"] = True
+                        successful_count = sum(1 for r in batch_results if r.get("success", False))
+                        st.session_state["status_message"] = f"Batch analysis completed: {successful_count}/{len(batch_files)} successful"
+                        st.session_state["status_type"] = "success"
+
+                        st.rerun()
+            else:
+                # === Single File Mode Processing ===
+                # parse → preprocess → predict → render
+                # Handles the submission of the analysis form and performs spectrum data processing
+                try:
+                    raw_text = st.session_state["input_text"]
+                    filename = st.session_state.get("filename") or "unknown.txt"
+
+                    # Parse
+                    with st.spinner("Parsing spectrum data..."):
+                        x_raw, y_raw = parse_spectrum_data(raw_text)
+
+                    # Resample
+                    with st.spinner("Resampling spectrum..."):
+                        # ===Resample Unpack===
+                        r1, r2 = resample_spectrum(x_raw, y_raw, TARGET_LEN)
+
+                        def _is_strictly_increasing(a):
+                            a = np.asarray(a)
+                            return a.ndim == 1  and a.size >= 2 and np.all(np.diff(a) > 0)
+
+                        if _is_strictly_increasing(r1) and not _is_strictly_increasing(r2):
+                            x_resampled, y_resampled = np.asarray(r1), np.asarray(r2)
+                        elif _is_strictly_increasing(r2) and not _is_strictly_increasing(r1):
+                            x_resampled, y_resampled = np.asarray(r2), np.asarray(r1)
+                        else:
+                            # == Ambigous; assume (x, y) and log
+                            x_resampled, y_resampled = np.asarray(r1), np.asarray(r2)
+                            log_message("Resample outputs ambigous; assumed (x, y).")
+
+                        # ===Persists for plotting + inference===
+                        st.session_state["x_raw"] = x_raw
+                        st.session_state["y_raw"] = y_raw
+                        st.session_state["x_resampled"] = x_resampled   #  ←-- NEW 
+                        st.session_state["y_resampled"] = y_resampled
+
+                    # Persist results (drives right column)
                     st.session_state["x_raw"] = x_raw
                     st.session_state["y_raw"] = y_raw
-                    st.session_state["x_resampled"] = x_resampled   #  ←-- NEW 
                     st.session_state["y_resampled"] = y_resampled
+                    st.session_state["inference_run_once"] = True
+                    st.session_state["status_message"] = f"🔍 Analysis completed for: {filename}"
+                    st.session_state["status_type"] = "success"
 
-                # Persist results (drives right column)
-                st.session_state["x_raw"] = x_raw
-                st.session_state["y_raw"] = y_raw
-                st.session_state["y_resampled"] = y_resampled
-                st.session_state["inference_run_once"] = True
-                st.session_state["status_message"] = f"🔍 Analysis completed for: {filename}"
-                st.session_state["status_type"] = "success"
+                    st.rerun()
 
-                st.rerun()
-
-            except (ValueError, TypeError) as e:
-                st.error(f"❌ Analysis failed: {e}")
-                st.session_state["status_message"] = f"❌ Error: {e}"
-                st.session_state["status_type"] = "error"
+                except (ValueError, TypeError) as e:
+                    ErrorHandler.log_error(e, "Single file analysis")
+                    st.error(f"❌ Analysis failed: {e}")
+                    st.session_state["status_message"] = f"❌ Error: {e}"
+                    st.session_state["status_type"] = "error"
 
     # Results column
     with col2:
-        if st.session_state.get("inference_run_once", False):
+
+        # Check if we're in batch more or have batch results
+        is_batch_mode = st.session_state.get("batch_mode", False)
+        has_batch_results = "batch_results" in st.session_state
+
+        if is_batch_mode and has_batch_results:
+            # Display batch results
+            st.markdown("##### Batch Analysis Results")
+            batch_results = st.session_state["batch_results"]
+            display_batch_results(batch_results)
+
+            # Add session results table
+            st.markdown("---")
+            ResultsManager.display_results_table()
+
+        elif st.session_state.get("inference_run_once", False) and not is_batch_mode:
             st.markdown("##### Analysis Results")
 
             # Get data from session state
@@ -750,7 +826,6 @@ def main():
 
             if all(v is not None for v in [x_raw, y_raw, y_resampled]):
                 # ===Run inference===
-
                 if y_resampled is None:
                     raise ValueError("y_resampled is None. Ensure spectrum data is properly resampled before proceeding.")
                 cache_key = hashlib.md5(f"{y_resampled.tobytes()}{model_choice}".encode()).hexdigest()
@@ -770,18 +845,42 @@ def main():
                 # ===Get prediction===
                 predicted_class = LABEL_MAP.get(
                     int(prediction), f"Class {int(prediction)}")
-                # === confidence metrics ===
-                logit_margin = abs(
-                    (logits_list[0] - logits_list[1]) if logits_list is not None and len(logits_list) >= 2 else 0
+
+
+                # Enhanced confidence calculation
+                if logits is not None:
+                    # Use new softmax-based confidence
+                    probs_np, max_confidence, confidence_level, confidence_emoji = calculate_softmax_confidence(logits)
+                    confidence_desc = confidence_level
+                else:
+                    # Fallback to legace method
+                    logit_margin = abs((logits_list[0] - logits_list[1]) if logits_list is not None and len(logits_list) >= 2 else 0)
+                    confidence_desc, confidence_emoji = get_confidence_description(logit_margin)
+                    max_confidence = logit_margin / 10.0 # Normalize for display
+                    probs_np = np.array([])
+
+                # Store result in results manager for single file too
+                ResultsManager.add_results(
+                    filename=filename,
+                    model_name=model_choice,
+                    prediction=int(prediction),
+                    predicted_class=predicted_class,
+                    confidence=max_confidence,
+                    logits=logits_list if logits_list else [],
+                    ground_truth=true_label_idx if true_label_idx >= 0 else None,
+                    processing_time=inference_time if inference_time is not None else 0.0,
+                    metadata={
+                        "confidence_level": confidence_desc,
+                        "confidence_emoji": confidence_emoji
+                    }
                 )
-                confidence_desc, confidence_emoji = get_confidence_description(logit_margin)
 
                 #===Precompute Stats===
                 spec_stats = {
                     "Original Length": len(x_raw) if x_raw is not None else 0,
                     "Resampled Length": TARGET_LEN,
                     "Wavenumber Range": f"{min(x_raw):.1f}-{max(x_raw):.1f} cm⁻¹" if x_raw is not None else "N/A",
-                    "Intensity Range": f"{min(y_raw):.1f}-{max(y_raw):.1f} cm⁻¹" if y_raw is not None else "N/A",
+                    "Intensity Range": f"{min(y_raw):.1f}-{max(y_raw):.1f} au" if y_raw is not None else "N/A",
                     "Confidence Bucket": confidence_desc,
                 }
                 model_path = MODEL_CONFIG[model_choice]["path"]
@@ -825,7 +924,7 @@ def main():
                             else:
                                 st.markdown(f"🟡 **Prediction**: {predicted_class}")
                             st.markdown(
-                                f"**{confidence_emoji} Confidence**: {confidence_desc} (margin: {logit_margin:.1f})")
+                                f"**{confidence_emoji} Confidence**: {confidence_desc} ({max_confidence:.1%})")
                             if true_label_idx is not None:
                                 if predicted_class == true_label_str:
                                     st.markdown(
@@ -838,12 +937,21 @@ def main():
                                     "**Ground Truth**: Unknown (filename doesn't follow naming convention)")
 
                             st.markdown("###### Confidence Overview")
-                            render_confidence_progress(
-                                probs if probs is not None else np.array([]),
-                                labels=["Stable", "Weathered"],
-                                highlight_idx=int(prediction),
-                                side_by_side=True, # Set false for stacked <<
-                            )
+                            if len(probs_np) > 0:
+                                confidence_html = create_confidence_progress_html(
+                                    probs_np,
+                                    labels=["Stable", "Weathered"],
+                                    highlight_idx=int(prediction)
+                                )
+                                st.markdown(confidence_html, unsafe_allow_html=True)
+                            else:
+                                # Fallback to legacy method
+                                render_confidence_progress(
+                                    probs if probs is not None else np.array([]),
+                                    labels=["Stable", "Weathered"],
+                                    highlight_idx=int(prediction),
+                                    side_by_side=True, # Set false for stacked <<
+                                )
 
                 elif active_tab == "Technical":
                     with st.container():
