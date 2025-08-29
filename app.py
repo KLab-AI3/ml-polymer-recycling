@@ -50,164 +50,106 @@ st.set_page_config(
 # ==Custom CSS Page + Element Styling==
 st.markdown("""
 <style>
-/* Modern, slightly darker custom CSS for Streamlit app */
-/* Optimized for accessibility, consistency, and tech-forward aesthetics */
-
-/* Scoped global styles */
-:where(html, body, .stApp) {
-  background-color: #111827; /* Tailwind gray-900, dark and sleek */
-  color: #fff; /* Tailwind slate-100, high contrast */
-  font-family: 'roboto', 'ui-monospace', 'SFMono-Regular', 'Menlo', 'Consolas', monospace;
-  font-size: 16px; /* Base font size for accessibility */
-  line-height: 1.4;
+/* ====== Base Styles ====== */
+.confbox,
+.kv-key,
+.kv-val,
+div[data-testid="stMetricValue"],
+div[data-testid="stMetricLabel"],
+section[data-testid="stSidebar"] {
+  font-family: 'Inter', sans-serif;
+  color: #e2e8f0; /* slate-200 */
 }
 
-/* Tabs content area */
+.kv-val { font-family: 'Fira Code', monospace; }
+
+/* ====== Tabs Content ====== */
 div[data-testid="stTabs"] > div[role="tablist"] + div {
   min-height: 400px;
-  background: #1f2937; /* Tailwind gray-800, slightly lighter for depth */
-  border-radius: 8px;
+  background: #1e293b; /* slate-800 */
+  border-radius: 10px;
   padding: 20px;
+  box-shadow: 0 4px 6px rgba(0,0,0,0.1);
 }
 
-/* Confidence box */
+/* ====== Confidence Box ====== */
 .confbox {
   font-size: 0.9rem;
   padding: 10px 12px;
-  border: 1px solid #374151; /* Tailwind gray-700 */
-  border-radius: 6px;
-  background: #1e293b; /* Tailwind slate-800 */
-  color: #d1d5db; /* Tailwind gray-300 */
+  border: 1px solid #2d3748; /* slate-700 */
+  border-radius: 10px;
+  background: #1e293b; /* slate-800 */
 }
 
-/* Key-value rows */
+/* ====== Key-Value Rows ====== */
 .kv-row {
   display: flex;
   justify-content: space-between;
   gap: 16px;
   padding: 4px 0;
-  border-bottom: 1px solid #374151; /* Tailwind gray-700 */
+  border-bottom: 1px solid #2d3748; /* slate-700 */
 }
-.kv-key {
-  opacity: 0.8;
-  font-size: 0.9rem;
-  white-space: nowrap;
-}
-.kv-val {
-  font-family: 'Fira Code', monospace;
-  font-size: 0.9rem;
-  color: #e5e7eb; /* Tailwind gray-200 */
-  overflow-wrap: break-word;
-}
+.kv-key { opacity: 0.8; font-size: 0.9rem; white-space: nowrap; }
+.kv-val { font-size: 0.9rem; overflow-wrap: break-word; }
 
-/* Markdown headings */
-:where(h5, .stMarkdown h5) {
-  margin-top: 0.5rem;
-  color: #f1f5f9; /* Tailwind slate-100 */
-  font-weight: 500;
-}
-
-/* Expander styles */
-div.stExpander > details > summary {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  cursor: pointer;
-  border: 1px solid #374151; /* Tailwind gray-700 */
-  border-radius: 6px;
-  padding: 6px 10px;
-  margin: 0;
-  background: #1e293b; /* Tailwind slate-800 */
-  font-weight: 600;
-  font-size: 0.95rem;
-  color: #d1d5db; /* Tailwind gray-300 */
-}
-
-/* Remove default disclosure markers */
+/* ====== Expanders ====== */
 div.stExpander > details > summary::-webkit-details-marker,
-div.stExpander > details > summary::marker {
-  display: none;
-}
+div.stExpander > details > summary::marker,
+div[data-testid="stExpander"] summary svg { display: none !important; }
 
-/* Hide Streamlit's custom arrow icon */
-div[data-testid="stExpander"] summary svg {
-  display: none !important;
-}
+div.stExpander > details[open] > summary { background: #2d3748; /* slate-700 */ }
 
-/* Expander hover state */
-div.stExpander > details[open] > summary {
-  background: #374151; /* Tailwind gray-700 */
-}
-
-/* Expander badge */
 div.stExpander > details > summary::after {
-  content: " ↓ ";
   font-size: 1.2rem;
-  font-weight: 1000;
-  letter-spacing: 0.5 ;
+  font-weight: 700;
+  letter-spacing: 0.5px;
   padding: 3px 10px;
-  border: 1px solid #4b5563;
   border-radius: 999px;
-  background: #374151; /* Tailwind gray-600 */
-  color: #e5e7eb; /* Tailwind gray-200 */
+  border: 1px solid #0ea5e9; /* sky-500 */
+  background: #2d3748;
+  color: #e2e8f0;
 }
 
-/* Success/results expander */
-.expander-marker + div[data-testid="stExpander"] summary {
-  border-left-color: #059669; /* Tailwind emerald-600 */
-  background: #1e293b; /* Tailwind slate-800 */
-}
+/* Specialized Expanders */
 .expander-marker + div[data-testid="stExpander"] summary::after {
   content: "RESULTS";
-  background: #047857; /* Tailwind emerald-700 */
-  color: #d1fae5; /* Tailwind emerald-100 */
-}
-
-[data-testid="stExpanderDetails"] {
-    padding-top: 10px;
-}
-
-/* Technical expander */
-div.stExpander:has(summary:contains("Technical")) > details > summary {
-  border-left-color: #ea580c; /* Tailwind orange-600 */
-  background: #1e293b; /* Tailwind slate-800 */
+  background: #2dd4bf; /* teal-400 */
+  color: #0f172a; /* slate-900 */
 }
 div.stExpander:has(summary:contains("Technical")) > details > summary::after {
   content: "ADVANCED";
-  background: #c2410c; /* Tailwind orange-700 */
-  color: #ffedd5; /* Tailwind orange-100 */
+  background: #ea580c; /* orange-600 */
+  border-color: #f97316; /* orange-500 */
+}
+[data-testid="stExpanderDetails"] {
+  padding-top: 10px;
+  background: #0f172a; /* slate-900 */
 }
 
-/* Sidebar metrics */
-div[data-testid="stMetricValue"] {
-  font-size: 0.95rem !important;
-  color: #f1f5f9; /* Tailwind slate-100 */
-}
-div[data-testid="stMetricLabel"] {
-  font-size: 0.85rem !important;
-  opacity: 0.8;
-  color: #d1d5db; /* Tailwind gray-300 */
-}
-
-/* Sidebar text */
-section[data-testid="stSidebar"]{
+/* ====== Sidebar ====== */
+section[data-testid="stSidebar"] {
   font-size: 0.95rem !important;
   line-height: 1.25;
-  color: #fff; /* Tailwind gray-200 */
+  background: #1e293b; /* slate-800 */
 }
 
-/* Diagnostics metrics */
-div[data-testid="stMetricValue"] {
-  font-size: 0.95rem !important;
-  color: #f1f5f9; /* Tailwind slate-100 */
+/* Metric labels/values */
+div[data-testid="stMetricValue"] { font-size: 0.95rem !important; }
+div[data-testid="stMetricLabel"] { font-size: 0.85rem !important; opacity: 0.8; }
+
+/* ====== Interactivity ====== */
+button:hover, a:hover, [role="button"]:hover {
+  background: #2dd4bf; /* teal-400 */
+  color: #0f172a; /* slate-900 */
 }
-div[data-testid="stMetricLabel"] {
-  font-size: 0.85rem !important;
-  color: #d1d5db; /* Tailwind gray-300 */
+:focus {
+  outline: 2px solid #67e8f9; /* cyan-300 */
+  outline-offset: 2px;
+  border-radius: 8px;
 }
 </style>
-""", unsafe_allow_html=True)
 
+""", unsafe_allow_html=True)
 
 # ==CONSTANTS==
 TARGET_LEN = 500
