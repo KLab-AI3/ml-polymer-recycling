@@ -147,6 +147,13 @@ div.stExpander > details > summary:hover::after {
   background-color: #16A34A; /* Green is universal for success */
 
 }
+div[data-testid="stExpander"] details {
+  content: "RESULTS";
+  background-color: var(--primary);
+  border-radius: 10px;
+  padding: 10px
+
+}
 .expander-advanced div[data-testid="stExpander"] summary::after {
   content: "ADVANCED";
   background-color: #D97706; /* Amber is universal for warning/technical */
@@ -227,7 +234,7 @@ def init_session_state():
         "status_type": "info",
         "input_text": None,
         "filename": None,
-        "input_source": None,     # "upload" or "sample"
+        "input_source": None,     # "upload", "batch" or "sample"
         "sample_select": "-- Select Sample --",
         "input_mode": "Upload File",   # controls which pane is visible
         "inference_run_once": False,
@@ -236,8 +243,12 @@ def init_session_state():
         "uploader_version": 0,
         "current_upload_key": "upload_txt_0",
         "active_tab": "Details",
-        "batch_mode": False  # Track if in batch mode
+        "batch_mode": False,
     }
+
+    if 'uploader_key' not in st.session_state:
+        st.session_state.uploader_key = 0
+
     for k, v in defaults.items():
         st.session_state.setdefault(k, v)
 
@@ -597,7 +608,6 @@ def reset_ephemeral_state():
     st.session_state["uploader_version"] += 1
     st.session_state["current_upload_key"] = f"upload_txt_{st.session_state['uploader_version']}"
 
-    st.rerun()
 
 # --- START: BUG 2 FIX (Callback Function) ---
 
@@ -611,11 +621,13 @@ def clear_batch_results():
     st.rerun()
 # --- END: BUG 2 FIX (Callback Function) ---
 
-    st.rerun()
+
+def reset_all():
+    # Increment the key to force the file uploader to re-render
+    st.session_state.uploader_key += 1
+
 
 # Main app
-
-
 def main():
     init_session_state()
 
@@ -718,7 +730,8 @@ def main():
             if uploaded_files:
                 # --- START: Bug 1 Fix ---
                 # Use a dictionary to keep only unique files based on name and size
-                unique_files = {(file.name, file.size): file for file in uploaded_files}
+                unique_files = {(file.name, file.size)
+                                 : file for file in uploaded_files}
                 unique_file_list = list(unique_files.values())
 
                 num_uploaded = len(uploaded_files)
@@ -999,11 +1012,11 @@ def main():
                         # This custom bullet bar logic remains as it is highly specific and valuable
                         def create_bullet_bar(probability, width=20, predicted=False):
                             filled_count = int(probability * width)
-                            bar = "█ " * filled_count + \
-                                "░" * (width - filled_count)
+                            bar = "▤" * filled_count + \
+                                "▢" * (width - filled_count)
                             percentage = f"{probability:.1%}"
                             pred_marker = "↩ Predicted" if predicted else ""
-                            return f"{bar} {percentage}     {pred_marker}"
+                            return f"{bar} {percentage}    {pred_marker}"
 
                         stable_prob, weathered_prob = probs[0], probs[1]
                         is_stable_predicted, is_weathered_predicted = (
