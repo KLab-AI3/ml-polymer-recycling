@@ -480,6 +480,56 @@ The platform successfully bridges academic research and practical application, p
 
 <div style="text-align: center">⁂</div>
 
+### EXTRA
+
+```text
+1. Setup & Configuration (Lines 1-105)
+    Imports: Standard libraries (os, sys, time), data science (numpy, torch, matplotlib), and Streamlit.
+    Local Imports: Pulls from your existing utils and models directories.
+    Constants: Global, hardcoded configuration variables.
+    KEEP_KEYS: Defines which session state keys persist on reset.
+    TARGET_LEN: A static preprocessing value.
+    SAMPLE_DATA_DIR, MODEL_WEIGHTS_DIR: Path configurations.
+    MODEL_CONFIG: A dictionary defining model paths, classes, and metadata.
+    LABEL_MAP: A dictionary for mapping class indices to human-readable names.
+    Page Setup:
+    st.set_page_config(): Sets the browser tab title, icon, and layout.
+    st.markdown(<style>...): A large, embedded multi-line string containing all the custom CSS for the application.
+2. Core Logic & Data Processing (Lines 108-250)
+    Model Handling:
+    load_state_dict(): Cached function to load model weights from a file.
+    load_model(): Cached resource to initialize a model class and load its weights.
+    run_inference(): The main ML prediction function. It takes resampled data, loads the appropriate model, runs inference, and returns the results.
+    Data I/O & Preprocessing:
+    label_file(): Extracts the ground truth label from a filename.
+    get_sample_files(): Lists the available .txt files in the sample data directory.
+    parse_spectrum_data(): The crucial function for reading, validating, and parsing raw text input into numerical numpy arrays.
+    Visualization:
+    create_spectrum_plot(): Generates the "Raw vs. Resampled" matplotlib plot and returns it as an image.
+    Helpers:
+    cleanup_memory(): A utility for garbage collection.
+    get_confidence_description(): Maps a logit margin to a human-readable confidence level.
+3. State Management & Callbacks (Lines 253-335)
+    Initialization:
+    init_session_state(): The cornerstone of the app's state, defining all the default values in st.session_state.
+    Widget Callbacks:
+    on_sample_change(): Triggered when the user selects a sample file.
+    on_input_mode_change(): Triggered by the main st.radio widget.
+    on_model_change(): Triggered when the user selects a new model.
+    Reset/Clear Functions:
+    reset_results(): A soft reset that only clears inference artifacts.
+    reset_ephemeral_state(): The "master reset" that clears almost all session state and forces a file uploader refresh.
+    clear_batch_results(): A focused function to clear only the results in col2.
+4. UI Rendering Components (Lines 338-End)
+    Generic Components:
+    render_kv_grid(): A reusable helper to display a dictionary in a neat grid.
+    render_model_meta(): Renders the model's accuracy and F1 score in the sidebar.
+    Main Application Layout (main()):
+    Sidebar: Contains the header, model selector (st.selectbox), model metadata, and the "About" expander.
+    Column 1 (Input): Contains the main st.radio for mode selection and the conditional logic to display the single file uploader, batch uploader, or sample selector. It also holds the "Run Analysis" and "Reset All" buttons.
+    Column 2 (Results): Contains all the logic for displaying either the batch results or the detailed, tabbed results for a single file (Details, Technical, Explanation).
+```
+
 [^1_1]: https://huggingface.co/spaces/dev-jas/polymer-aging-ml/tree/main
 [^1_2]: https://huggingface.co/spaces/dev-jas/polymer-aging-ml/tree/main/datasets
 [^1_3]: https://huggingface.co/spaces/dev-jas/polymer-aging-ml
