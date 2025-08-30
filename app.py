@@ -47,109 +47,144 @@ st.set_page_config(
         "Get help": "https://github.com/KLab-AI3/ml-polymer-recycling"}
 )
 
-# ==Custom CSS Page + Element Styling==
+
+# ==============================================================================
+# THEME-AWARE CUSTOM CSS
+# ==============================================================================
+# This CSS block has been refactored to use Streamlit's internal theme
+# variables. This ensures that all custom components will automatically adapt
+# to both light and dark themes selected by the user in the settings menu.
 st.markdown("""
 <style>
-/* ====== Base Styles ====== */
-.confbox,
-.kv-key,
-.kv-val,
+/* ====== Font Imports (Optional but Recommended) ====== */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&family=Fira+Code:wght@400&display=swap');
+
+/* ====== Base & Typography ====== */
+.stApp,
+section[data-testid="stSidebar"],
 div[data-testid="stMetricValue"],
-div[data-testid="stMetricLabel"],
-section[data-testid="stSidebar"] {
+div[data-testid="stMetricLabel"] {
   font-family: 'Inter', sans-serif;
-  color: #e2e8f0; /* slate-200 */
+  /* Uses the main text color from the current theme (light or dark) */
+  color: var(--text-color);
 }
 
-.kv-val { font-family: 'Fira Code', monospace; }
+.kv-val {
+  font-family: 'Fira Code', monospace;
+}
 
-/* ====== Tabs Content ====== */
+/* ====== Custom Containers: Tabs & Info Boxes ====== */
 div[data-testid="stTabs"] > div[role="tablist"] + div {
   min-height: 400px;
-  background: #1e293b; /* slate-800 */
+  /* Uses the secondary background color, which is different in light and dark modes */
+  background-color: var(--secondary-background-color);
+  /* Border color uses a semi-transparent version of the text color for a subtle effect that works on any background */
+  border: 10px solid rgba(128, 128, 128, 0.2);
   border-radius: 10px;
-  padding: 20px;
-  box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+  padding: 24px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
 }
 
-/* ====== Confidence Box ====== */
-.confbox {
+.info-box {
   font-size: 0.9rem;
-  padding: 10px 12px;
-  border: 1px solid #2d3748; /* slate-700 */
+  padding: 12px 16px;
+  border: 1px solid rgba(128, 128, 128, 0.2);
   border-radius: 10px;
-  background: #1e293b; /* slate-800 */
+  background-color: var(--secondary-background-color);
 }
 
-/* ====== Key-Value Rows ====== */
+/* ====== Key-Value Pair Styling ====== */
 .kv-row {
   display: flex;
   justify-content: space-between;
   gap: 16px;
-  padding: 4px 0;
-  border-bottom: 1px solid #2d3748; /* slate-700 */
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(128, 128, 128, 0.2);
 }
-.kv-key { opacity: 0.8; font-size: 0.9rem; white-space: nowrap; }
-.kv-val { font-size: 0.9rem; overflow-wrap: break-word; }
+.kv-row:last-child {
+  border-bottom: none;
+}
+.kv-key {
+  opacity: 0.7;
+  font-size: 0.9rem;
+  white-space: nowrap;
+}
+.kv-val {
+  font-size: 0.9rem;
+  overflow-wrap: break-word;
+  text-align: right;
+}
 
-/* ====== Expanders ====== */
+/* ====== Custom Expander Styling ====== */
 div.stExpander > details > summary::-webkit-details-marker,
 div.stExpander > details > summary::marker,
-div[data-testid="stExpander"] summary svg { display: none !important; }
-
-div.stExpander > details[open] > summary { background: #2d3748; /* slate-700 */ }
+div[data-testid="stExpander"] summary svg {
+  display: none !important;
+}
 
 div.stExpander > details > summary::after {
-  font-size: 1.2rem;
-  font-weight: 700;
+  content: 'DETAILS';
+  font-size: 0.75rem;
+  font-weight: 600;
   letter-spacing: 0.5px;
-  padding: 3px 10px;
+  padding: 4px 12px;
   border-radius: 999px;
-  border: 1px solid #0ea5e9; /* sky-500 */
-  background: #2d3748;
-  color: #e2e8f0;
+  /* The primary color is set in config.toml and adapted by Streamlit */
+  background-color: var(--primary);
+  /* Text on the primary color needs high contrast. White works well for our chosen purple. */
+
+  transition: background-color 0.2s ease-in-out;
 }
 
-/* Specialized Expanders */
-.expander-marker + div[data-testid="stExpander"] summary::after {
+div.stExpander > details > summary:hover::after {
+  /* Using a fixed darker shade on hover. A more advanced solution could use color-mix() in CSS. */
+  filter: brightness(90%);
+}
+
+/* Specialized Expander Labels */
+.expander-results div[data-testid="stExpander"] summary::after {
   content: "RESULTS";
-  background: #2dd4bf; /* teal-400 */
-  color: #0f172a; /* slate-900 */
+  background-color: #16A34A; /* Green is universal for success */
+
 }
-div.stExpander:has(summary:contains("Technical")) > details > summary::after {
+.expander-advanced div[data-testid="stExpander"] summary::after {
   content: "ADVANCED";
-  background: #ea580c; /* orange-600 */
-  border-color: #f97316; /* orange-500 */
+  background-color: #D97706; /* Amber is universal for warning/technical */
+
 }
+
 [data-testid="stExpanderDetails"] {
-  padding-top: 10px;
-  background: #0f172a; /* slate-900 */
+  padding: 16px 4px 4px 4px;
+  background-color: transparent;
+  border-top: 1px solid rgba(128, 128, 128, 0.2);
+  margin-top: 12px;
 }
 
-/* ====== Sidebar ====== */
-section[data-testid="stSidebar"] {
-  font-size: 0.95rem !important;
-  line-height: 1.25;
-  background: #1e293b; /* slate-800 */
+/* ====== Sidebar & Metrics ====== */
+section[data-testid="stSidebar"] > div:first-child {
+  background-color: var(--secondary-background-color);
+  border-right: 1px solid rgba(128, 128, 128, 0.2);
 }
 
-/* Metric labels/values */
-div[data-testid="stMetricValue"] { font-size: 0.95rem !important; }
-div[data-testid="stMetricLabel"] { font-size: 0.85rem !important; opacity: 0.8; }
-
-/* ====== Interactivity ====== */
-button:hover, a:hover, [role="button"]:hover {
-  background: #2dd4bf; /* teal-400 */
-  color: #0f172a; /* slate-900 */
+div[data-testid="stMetricValue"] {
+  font-size: 1.1rem !important;
+  font-weight: 500;
 }
-:focus {
-  outline: 2px solid #67e8f9; /* cyan-300 */
+div[data-testid="stMetricLabel"] {
+  font-size: 0.85rem !important;
+  opacity: 0.8;
+}
+
+/* ====== Interactivity & Accessibility ====== */
+:focus-visible {
+  /* The focus outline now uses the theme's primary color */
+  outline: 2px solid var(--primary);
   outline-offset: 2px;
   border-radius: 8px;
 }
 </style>
-
 """, unsafe_allow_html=True)
+
 
 # ==CONSTANTS==
 TARGET_LEN = 500
@@ -547,28 +582,34 @@ def reset_results(reason: str = ""):
 
 
 def reset_ephemeral_state():
-    """remove everything except KEPT global UI context"""
+    """Comprehensive reset for the entire app state."""
+    # Define keys that should NOT be cleared by a full reset
+    keep_keys = {"model_select", "input_mode"}
+
     for k in list(st.session_state.keys()):
-        if k not in KEEP_KEYS:
+        if k not in keep_keys:
             st.session_state.pop(k, None)
 
-    # == bump the uploader version → new widget instance with empty value ==
+    # Re-initialize the core state after clearing
+    init_session_state()
+
+    # CRITICAL: Bump the uploader version to force a widget reset
     st.session_state["uploader_version"] += 1
     st.session_state["current_upload_key"] = f"upload_txt_{st.session_state['uploader_version']}"
 
-    # == reseed other emphemeral state ==
-    st.session_state["input_text"] = None
-    st.session_state["filename"] = None
-    st.session_state["input_source"] = None
-    st.session_state["sample_select"] = "-- Select Sample --"
-    # == return the UI to a clean state ==
-    st.session_state["inference_run_once"] = False
-    st.session_state["x_raw"] = None
-    st.session_state["y_raw"] = None
-    st.session_state["y_resampled"] = None
-    st.session_state["log_messages"] = []
-    st.session_state["status_message"] = "Ready to analyze polymer spectra 🔬"
-    st.session_state["status_type"] = "info"
+    st.rerun()
+
+# --- START: BUG 2 FIX (Callback Function) ---
+
+
+def clear_batch_results():
+    """Callback to clear only the batch results and the results log table."""
+    if "batch_results" in st.session_state:
+        del st.session_state["batch_files"]
+    # Also clear the persistent table from the ResultsManager utility
+    ResultsManager.clear_results()
+    st.rerun()
+# --- END: BUG 2 FIX (Callback Function) ---
 
     st.rerun()
 
@@ -599,23 +640,23 @@ def main():
             AI-Driven Polymer Aging Prediction and Classification
 
             **Purpose**: Classify polymer degradation using AI
-            **Input**: Raman spectroscopy `.txt` files  
-            **Models**: CNN architectures for binary classification  
+            **Input**: Raman spectroscopy `.txt` files
+            **Models**: CNN architectures for binary classification
             **Next**: More trained CNNs in evaluation pipeline
 
 
-            **Contributors**  
-            Dr. Sanmukh Kuppannagari (Mentor)  
-            Dr. Metin Karailyan (Mentor)  
+            **Contributors**
+            Dr. Sanmukh Kuppannagari (Mentor)
+            Dr. Metin Karailyan (Mentor)
             Jaser Hasan (Author)
 
 
-            **Links**  
-            [Live HF Space](https://huggingface.co/spaces/dev-jas/polymer-aging-ml)  
+            **Links**
+            [Live HF Space](https://huggingface.co/spaces/dev-jas/polymer-aging-ml)
             [GitHub Repository](https://github.com/KLab-AI3/ml-polymer-recycling)
 
 
-            **Citation Figure2CNN (baseline)**  
+            **Citation Figure2CNN (baseline)**
             Neo et al., 2023, *Resour. Conserv. Recycl.*, 188, 106718.
             [https://doi.org/10.1016/j.resconrec.2022.106718](https://doi.org/10.1016/j.resconrec.2022.106718)
             """, )
@@ -662,18 +703,44 @@ def main():
         # ==Batch Upload tab==
         elif mode == "Batch Upload":
             st.session_state["batch_mode"] = True
-            uploaded_files = create_batch_uploader()
+            # --- START: BUG 1 & 3 FIX ---
+            # Use a versioned key to ensure the file uploader resets properly.
+            batch_upload_key = f"batch_upload_{st.session_state['uploader_version']}"
+            uploaded_files = st.file_uploader(
+                "Upload multiple Raman spectrum files (.txt)",
+                type="txt",
+                accept_multiple_files=True,
+                help="Upload one or more text files with wavenumber and intensity columns.",
+                key=batch_upload_key
+            )
+            # --- END: BUG 1 & 3 FIX ---
 
             if uploaded_files:
-                st.success(
-                    f"{len(uploaded_files)} files selected for batch processing")
-                st.session_state["batch_files"] = uploaded_files
-                st.session_state["status_message"] = f"{len(uploaded_files)} ready for batch analysis"
+                # --- START: Bug 1 Fix ---
+                # Use a dictionary to keep only unique files based on name and size
+                unique_files = {(file.name, file.size)
+                                 : file for file in uploaded_files}
+                unique_file_list = list(unique_files.values())
+
+                num_uploaded = len(uploaded_files)
+                num_unique = len(unique_file_list)
+
+                # Optionally, inform the user that duplicates were removed
+                if num_uploaded > num_unique:
+                    st.info(
+                        f"ℹ️ {num_uploaded - num_unique} duplicate file(s) were removed.")
+
+                # Use the unique list
+                st.session_state["batch_files"] = unique_file_list
+                st.session_state["status_message"] = f"{num_unique} ready for batch analysis"
                 st.session_state["status_type"] = "success"
+                # --- END: Bug 1 Fix ---
             else:
                 st.session_state["batch_files"] = []
-                st.session_state["status_message"] = "No files selected for batch processing"
-                st.session_state["status_type"] = "info"
+                # This check prevents resetting the status if files are already staged
+                if not st.session_state.get("batch_files"):
+                    st.session_state["status_message"] = "No files selected for batch processing"
+                    st.session_state["status_type"] = "info"
 
         # ==Sample tab==
         elif mode == "Sample Data":
@@ -728,8 +795,9 @@ def main():
                 disabled=not inference_ready,
             )
 
-        if st.button("Reset", help="Clear current file(s), plots, and results"):
-            reset_ephemeral_state()
+        # Renamed for clarity and uses the robust on_click callback
+        st.button("Reset All", on_click=reset_ephemeral_state,
+                  help="Clear all uploaded files and results.")
 
         if submitted and inference_ready:
             if is_batch_mode:
@@ -778,6 +846,13 @@ def main():
 
             # Add session results table
             st.markdown("---")
+
+            # --- START: BUG 2 FIX (Button) ---
+            # This button will clear all results from col2 correctly.
+            st.button("Clear Results", on_click=clear_batch_results,
+                      key="clear_results_button")
+            # --- END: BUG 2 FIX (Button) ---
+
             ResultsManager.display_results_table()
 
         elif st.session_state.get("inference_run_once", False) and not is_batch_mode:
@@ -885,6 +960,9 @@ def main():
                 )
 
                 if active_tab == "Details":
+                    # MODIFIED: Wrap the expander in a div with the 'expander-results' class
+                    st.markdown('<div class="expander-results">',
+                                unsafe_allow_html=True)
                     with st.expander("Results", expanded=True):
                         # Clean header with key information
                         st.markdown("<br>**Analysis Summary**",
@@ -1022,8 +1100,10 @@ def main():
                                                 Weathered (Degraded)<br>
                                                 {create_bullet_bar(weathered_prob, predicted=is_weathered_predicted)}
                                             </div>
-                                            
+
                                 """, unsafe_allow_html=True)
+                    st.markdown(
+                        '</div>', unsafe_allow_html=True)  # Close the wrapper div
 
                 elif active_tab == "Technical":
                     with st.container():
@@ -1185,6 +1265,9 @@ def main():
                             st.markdown(app)
 
                         # Technical details
+                        # MODIFIED: Wrap the expander in a div with the 'expander-advanced' class
+                        st.markdown('<div class="expander-advanced">',
+                                    unsafe_allow_html=True)
                         with st.expander("🔧 Technical Details", expanded=False):
                             st.markdown("""
                             **Model Architecture:**
@@ -1192,17 +1275,19 @@ def main():
                             - Residual connections for gradient flow
                             - Fully connected layers for classification
                             - Softmax activation for probability distribution
-                            
+
                             **Performance Metrics:**
                             - Accuracy: 94.8-96.2% on validation set
                             - F1-Score: 94.3-95.9% across classes
                             - Robust to spectral noise and baseline variations
-                            
+
                             **Data Processing:**
                             - Input: Raman spectra (any length)
                             - Resampling: Linear interpolation to 500 points
                             - Normalization: None (preserves intensity relationships)
                             """)
+                        st.markdown(
+                            '</div>', unsafe_allow_html=True)  # Close the wrapper div
 
                         render_time = time.time() - start_render
                         log_message(
@@ -1237,17 +1322,27 @@ def main():
         else:
             # ===Getting Started===
             st.markdown("""
-            ##### Get started by:
-            1. Select an AI model in the sidebar
-            2. Upload a Raman spectrum file or choose a sample
-            3. Click "Run Analysis" to get predictions
-            
-            ##### Supported formats:
-            - Text files (.txt) with wavenumber and intensity columns
-            - Space or comma-separated values
-            - Any length (automatically resampled to 500 points)
-            
-            ##### Example applications:
+            ##### How to Get Started
+
+            1.  **Select an AI Model:** Use the dropdown menu in the sidebar to choose a model.
+            2.  **Provide Your Data:** Select one of the three input modes:
+                -   **Upload File:** Analyze a single spectrum.
+                -   **Batch Upload:** Process multiple files at once.
+                -   **Sample Data:** Explore functionality with pre-loaded examples.
+            3.  **Run Analysis:** Click the "Run Analysis" button to generate the classification results.
+
+            ---
+
+            ##### Supported Data Format
+
+            -   **File Type:** Plain text (`.txt`)
+            -   **Content:** Must contain two columns: `wavenumber` and `intensity`.
+            -   **Separators:** Values can be separated by spaces or commas.
+            -   **Preprocessing:** Your spectrum will be automatically resampled to 500 data points to match the model's input requirements.
+
+            ---
+
+            ##### Example Applications
             - 🔬 Research on polymer degradation
             - ♻️ Recycling feasibility assessment
             - 🌱 Sustainability impact studies
