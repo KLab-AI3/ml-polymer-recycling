@@ -718,8 +718,7 @@ def main():
             if uploaded_files:
                 # --- START: Bug 1 Fix ---
                 # Use a dictionary to keep only unique files based on name and size
-                unique_files = {(file.name, file.size)
-                                 : file for file in uploaded_files}
+                unique_files = {(file.name, file.size): file for file in uploaded_files}
                 unique_file_list = list(unique_files.values())
 
                 num_uploaded = len(uploaded_files)
@@ -849,8 +848,8 @@ def main():
 
             # --- START: BUG 2 FIX (Button) ---
             # This button will clear all results from col2 correctly.
-            st.button("Clear Results", on_click=clear_batch_results,
-                      key="clear_results_button")
+            # st.button("Clear Results", on_click=clear_batch_results,
+            #           help="Clear all uploaded files and results.")
             # --- END: BUG 2 FIX (Button) ---
 
             ResultsManager.display_results_table()
@@ -960,150 +959,75 @@ def main():
                 )
 
                 if active_tab == "Details":
-                    # MODIFIED: Wrap the expander in a div with the 'expander-results' class
                     st.markdown('<div class="expander-results">',
                                 unsafe_allow_html=True)
-                    with st.expander("Results", expanded=True):
-                        # Clean header with key information
-                        st.markdown("<br>**Analysis Summary**",
-                                    width="content", unsafe_allow_html=True)
+                    # Use a dynamic and informative title for the expander
+                    with st.expander(f"Results for {filename}", expanded=True):
 
-                        # Streamlined header information
-                        header_col1, header_col2, header_col3 = st.columns([
-                                                                           2, 2, 2], border=True)
+                        # --- START: STREAMLINED METRICS ---
+                        # A single, powerful row for the most important results.
+                        key_metric_cols = st.columns(3)
 
-                        with header_col1:
-                            st.metric(
-                                label="**Sample**",
-                                value=filename,
-                                delta=None,
-                            )
+                        # Metric 1: The Prediction
+                        key_metric_cols[0].metric(
+                            "Prediction", predicted_class)
 
-                        with header_col2:
-                            st.metric(
-                                label="**Model**",
-                                value=model_choice.split(
-                                    " ")[0],  # Remove emoji
-                                delta=None
-                            )
+                        # Metric 2: The Confidence (with level in tooltip)
+                        confidence_icon = "🟢" if max_confidence >= 0.8 else "🟡" if max_confidence >= 0.6 else "🔴"
+                        key_metric_cols[1].metric(
+                            "Confidence",
+                            f"{confidence_icon} {max_confidence:.1%}",
+                            help=f"Confidence Level: {confidence_desc}"
+                        )
 
-                        with header_col3:
-                            st.metric(
-                                label="**Processing Time**",
-                                value=f"{inference_time:.2f}s",
-                                delta=None
-                            )
-                        # Main classification results in clean cards
-                        st.markdown("**Classification Results**",
-                                    width="content", unsafe_allow_html=True)
+                        # Metric 3: Ground Truth + Correctness (Combined)
+                        if true_label_idx is not None:
+                            is_correct = (predicted_class == true_label_str)
+                            delta_text = "✅ Correct" if is_correct else "❌ Incorrect"
+                            # Use delta_color="normal" to let the icon provide the visual cue
+                            key_metric_cols[2].metric(
+                                "Ground Truth", true_label_str, delta=delta_text, delta_color="normal")
+                        else:
+                            key_metric_cols[2].metric("Ground Truth", "N/A")
 
-                        # Primary results in a clean 3-column layout
-                        result_col1, result_col2, result_col3 = st.columns([
-                                                                           1, 1, 1], border=True)
+                        st.divider()
+                        # --- END: STREAMLINED METRICS ---
 
-                        with result_col1:
-                            st.metric(
-                                label="**Prediction**",
-                                value=predicted_class,
-                                delta=None
-                            )
+                        # --- START: CONSOLIDATED CONFIDENCE ANALYSIS ---
+                        st.markdown("##### Probability Breakdown")
 
-                        with result_col2:
-                            confidence_icon = "🟢" if max_confidence >= 0.8 else "🟡" if max_confidence >= 0.6 else "🔴"
-                            st.metric(
-                                label="**Confidence**",
-                                value=f"{confidence_icon} {max_confidence:.1%}",
-                                delta=None
-                            )
+                        # This custom bullet bar logic remains as it is highly specific and valuable
+                        def create_bullet_bar(probability, width=20, predicted=False):
+                            filled_count = int(probability * width)
+                            bar = "█ " * filled_count + \
+                                "░" * (width - filled_count)
+                            percentage = f"{probability:.1%}"
+                            pred_marker = "↩ Predicted" if predicted else ""
+                            return f"{bar} {percentage}     {pred_marker}"
 
-                        with result_col3:
-                            st.metric(
-                                label="**Ground Truth**",
-                                value=f"{true_label_str}",
-                                delta=None
-                            )
+                        stable_prob, weathered_prob = probs[0], probs[1]
+                        is_stable_predicted, is_weathered_predicted = (
+                            int(prediction) == 0), (int(prediction) == 1)
 
-                        # Enhanced confidence analysis - more compact and scientific
-                        # Create a professional confidence display
-                        with st.container(border=True, height=325):
-                            st.markdown(
-                                "**Confidence Analysis**", unsafe_allow_html=True)
-                            # Function to create enhanced bullet bars
+                        st.markdown(f"""
+                            <div style="font-family: 'Fira Code', monospace;">
+                                Stable (Unweathered)<br>
+                                {create_bullet_bar(stable_prob, predicted=is_stable_predicted)}<br><br>
+                                Weathered (Degraded)<br>
+                                {create_bullet_bar(weathered_prob, predicted=is_weathered_predicted)}
+                            </div>
+                        """, unsafe_allow_html=True)
+                        # --- END: CONSOLIDATED CONFIDENCE ANALYSIS ---
 
-                            def create_bullet_bar(probability, width=20, predicted=False):
-                                filled_count = int(probability * width)
-                                empty_count = width - filled_count
+                        st.divider()
 
-                                # Use professional symbols
-                                filled_symbol = "█ "  # Solid block
-                                empty_symbol = "░"   # Light shade
+                        # --- START: CLEAN METADATA FOOTER ---
+                        # Secondary info is now a clean, single-line caption
+                        st.caption(
+                            f"Analyzed with **{model_choice}** in **{inference_time:.2f}s**.")
+                        # --- END: CLEAN METADATA FOOTER ---
 
-                                # Create the bar
-                                bar = filled_symbol * filled_count + empty_symbol * empty_count
-
-                                # Add percentage with scientific formatting
-                                percentage = f"{probability:.1%}"
-
-                                # Add prediction indicator
-                                pred_marker = "↩ Predicted" if predicted else ""
-
-                                return f"{bar} {percentage}     {pred_marker}"
-
-                            # Get probabilities
-                            stable_prob = probs[0]
-                            weathered_prob = probs[1]
-                            is_stable_predicted = int(prediction) == 0
-                            is_weathered_predicted = int(prediction) == 1
-
-                            # Clean 2-column layout for assessment and probabilities
-                            assess_col, prob_col = st.columns(
-                                [1, 2.5], gap="small", border=True)
-
-                            # Left column: Assessment metrics
-                            with assess_col:
-                                st.markdown(
-                                    "Assessment", unsafe_allow_html=True)
-
-                                # Ground truth validation
-                                if true_label_idx is not None:
-                                    is_correct = predicted_class == true_label_str
-                                    accuracy_icon = "✅" if is_correct else ""
-                                    status_text = "Correct" if is_correct else "Incorrect"
-                                    st.metric(
-                                        label="**Ground Truth**",
-                                        value=f"{accuracy_icon} {status_text}",
-                                        delta=f"{'100%' if is_correct else '0%'}"
-                                    )
-                                else:
-                                    st.metric(
-                                        label="**Ground Truth**",
-                                        value="N/A",
-                                        delta="No reference"
-                                    )
-
-                                # Confidence level
-                                confidence_icon = "🟢" if max_confidence >= 0.8 else "🟡" if max_confidence >= 0.6 else "🔴"
-                                st.metric(
-                                    label="**Confidence Level**",
-                                    value=f"{confidence_icon} {confidence_desc}",
-                                    delta=f"{max_confidence:.1%}"
-                                )
-
-                            # Right column: Probability distribution
-                            with prob_col:
-                                st.markdown("Probability Distribution")
-
-                                st.markdown(f"""
-                                            <div style="">
-                                                Stable (Unweathered)<br>
-                                                {create_bullet_bar(stable_prob, predicted=is_stable_predicted)}<br><br>
-                                                Weathered (Degraded)<br>
-                                                {create_bullet_bar(weathered_prob, predicted=is_weathered_predicted)}
-                                            </div>
-
-                                """, unsafe_allow_html=True)
-                    st.markdown(
-                        '</div>', unsafe_allow_html=True)  # Close the wrapper div
+                    st.markdown('</div>', unsafe_allow_html=True)
 
                 elif active_tab == "Technical":
                     with st.container():
