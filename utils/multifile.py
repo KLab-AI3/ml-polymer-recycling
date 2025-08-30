@@ -305,7 +305,7 @@ def display_batch_results(results: List[Dict[str, Any]]) -> None:
     failed = [r for r in results if not r.get("success", False)]
 
     # ==Summary==
-    col1, col2, col3 = st.columns(3)
+    col1, col2, col3 = st.columns(3, border=True)
     with col1:
         st.metric("Total Files", len(results))
     with col2:
@@ -316,28 +316,30 @@ def display_batch_results(results: List[Dict[str, Any]]) -> None:
             failed), delta=f"-{len(failed)/len(results)*100:.1f}%" if failed else "0%")
 
     # ==Results tabs==
-    tab1, tab2 = st.tabs(["✅Successful", "❌ Failed"])
+    tab1, tab2 = st.tabs(["✅Successful", "❌ Failed"], width="stretch")
 
     with tab1:
-        if successful:
-            for result in successful:
-                with st.expander(f"{result['filename']}", expanded=False):
-                    col1, col2 = st.columns(2)
-                    with col1:
-                        st.write(
-                            f"**Prediction:** {result['predicted_class']}")
-                        st.write(
-                            f"**Confidence:** {result['confidence_emoji']} {result['confidence_level']} ({result['confidence']:.3f})")
-                    with col2:
-                        st.write(
-                            f"**Processing Time:** {result['processing_time']:.3f}s")
-                        if result['ground_truth'] is not None:
-                            gt_label = {0: "Stable", 1: "Weathered"}.get(
-                                result['ground_truth'], "Unknown")
-                            correct = "✅" if result['prediction'] == result['ground_truth'] else "❌"
-                            st.write(f"**Ground Truth:** {gt_label} {correct}")
-        else:
-            st.info("No successful results")
+        with st.expander("Successful"):
+            if successful:
+                for result in successful:
+                    with st.expander(f"{result['filename']}", expanded=False):
+                        col1, col2 = st.columns(2)
+                        with col1:
+                            st.write(
+                                f"**Prediction:** {result['predicted_class']}")
+                            st.write(
+                                f"**Confidence:** {result['confidence_emoji']} {result['confidence_level']} ({result['confidence']:.3f})")
+                        with col2:
+                            st.write(
+                                f"**Processing Time:** {result['processing_time']:.3f}s")
+                            if result['ground_truth'] is not None:
+                                gt_label = {0: "Stable", 1: "Weathered"}.get(
+                                    result['ground_truth'], "Unknown")
+                                correct = "✅" if result['prediction'] == result['ground_truth'] else "❌"
+                                st.write(
+                                    f"**Ground Truth:** {gt_label} {correct}")
+            else:
+                st.info("No successful results")
 
     with tab2:
         if failed:

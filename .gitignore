@@ -10,12 +10,14 @@ __pycache__/
 *.env
 *.yml
 *.json
+*.sh
 .streamlit
 outputs/logs/
 docs/PROJECT_REPORT.md
 wea-*.txt
 sta-*.txt
 S3PR.md
+
 
 # --- Data (keep folder, ignore files) ---
 datasets/**
