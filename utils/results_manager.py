@@ -9,6 +9,7 @@ from typing import Dict, List, Any, Optional
 from pathlib import Path
 import io
 
+
 class ResultsManager:
     """Manages session-wide results for multi-file inference"""
 
@@ -73,7 +74,7 @@ class ResultsManager:
         if not results:
             return pd.DataFrame()
 
-        #===Flatten the results for DataFrame===
+        # ===Flatten the results for DataFrame===
         df_data = []
         for result in results:
             row = {
@@ -99,7 +100,7 @@ class ResultsManager:
         if df.empty:
             return b""
 
-        #===Use StringIO to create CSV in memory===
+        # ===Use StringIO to create CSV in memory===
         csv_buffer = io.StringIO()
         df.to_csv(csv_buffer, index=False)
         return csv_buffer.getvalue().encode('utf-8')
@@ -128,9 +129,9 @@ class ResultsManager:
             "avg_processing_time": sum(r["processing_time"] for r in results) / len(results),
             "files_with_ground_truth": sum(1 for r in results if r["ground_truth"] is not None),
         }
-        #===Calculate accuracy if ground truth is available===
+        # ===Calculate accuracy if ground truth is available===
         correct_predictions = sum(
-            1 for r in results 
+            1 for r in results
             if r["ground_truth"] is not None and r["prediction"] == r["ground_truth"]
         )
         total_with_gt = stats["files_with_ground_truth"]
@@ -138,7 +139,7 @@ class ResultsManager:
             stats["accuracy"] = correct_predictions / total_with_gt
         else:
             stats["accuracy"] = None
-        
+
         return stats
 
     @staticmethod
@@ -146,26 +147,70 @@ class ResultsManager:
         """Remove a result by filename. Returns True if removed, False if not found."""
         results = ResultsManager.get_results()
         original_length = len(results)
-        
+
         # Filter out results with matching filename
         st.session_state[ResultsManager.RESULTS_KEY] = [
             r for r in results if r["filename"] != filename
         ]
-        
+
         return len(st.session_state[ResultsManager.RESULTS_KEY]) < original_length
-    
+
+    @staticmethod
+    # ==UTILITY FUNCTIONS==
+    def init_session_state():
+        """Keep a persistent session state"""
+        defaults = {
+            "status_message": "Ready to analyze polymer spectra 🔬",
+            "status_type": "info",
+            "input_text": None,
+            "filename": None,
+            "input_source": None,     # "upload", "batch" or "sample"
+            "sample_select": "-- Select Sample --",
+            "input_mode": "Upload File",   # controls which pane is visible
+            "inference_run_once": False,
+            "x_raw": None, "y_raw": None, "y_resampled": None,
+            "log_messages": [],
+            "uploader_version": 0,
+            "current_upload_key": "upload_txt_0",
+            "active_tab": "Details",
+            "batch_mode": False,
+        }
+
+        # Init session state with defaults
+        for key, value in defaults.items():
+            if key not in st.session_state:
+                st.session_state[key] = value
+
+    @staticmethod
+    def reset_ephemeral_state():
+        """Comprehensive reset for the entire app state."""
+        # Define keys that should NOT be cleared by a full reset
+        keep_keys = {"model_select", "input_mode"}
+
+        for k in list(st.session_state.keys()):
+            if k not in keep_keys:
+                st.session_state.pop(k, None)
+
+        # Re-initialize the core state after clearing
+        ResultsManager.init_session_state()
+
+        # CRITICAL: Bump the uploader version to force a widget reset
+        st.session_state["uploader_version"] += 1
+        st.session_state["current_upload_key"] = f"upload_txt_{st.session_state['uploader_version']}"
+
     @staticmethod
     def display_results_table() -> None:
         """Display the results table in Streamlit UI"""
         df = ResultsManager.get_results_dataframe()
 
         if df.empty:
-            st.info("No inference results yet. Upload files and run analysis to see results here.")
+            st.info(
+                "No inference results yet. Upload files and run analysis to see results here.")
             return
 
         st.subheader(f"Inference Results ({len(df)} files)")
 
-        #==Summary stats==
+        # ==Summary stats==
         stats = ResultsManager.get_summary_stats()
         if stats:
             col1, col2, col3, col4 = st.columns(4)
@@ -174,17 +219,18 @@ class ResultsManager:
             with col2:
                 st.metric("Avg Confidence", f"{stats['avg_confidence']:.3f}")
             with col3:
-                st.metric("Stable/Weathered", f"{stats['stable_predictions']}/{stats['weathered_predictions']}")
+                st.metric(
+                    "Stable/Weathered", f"{stats['stable_predictions']}/{stats['weathered_predictions']}")
             with col4:
                 if stats["accuracy"] is not None:
                     st.metric("Accuracy", f"{stats['accuracy']:.3f}")
                 else:
                     st.metric("Accuracy", "N/A")
 
-            #==Results Table==
+            # ==Results Table==
             st.dataframe(df, use_container_width=True)
 
-            #==Export Button==
+            # ==Export Button==
             col1, col2, col3 = st.columns([1, 1, 2])
 
             with col1:
@@ -208,6 +254,5 @@ class ResultsManager:
                     )
 
             with col3:
-                if st.button("Clear All Results", help="Clear all stored results"):
-                    ResultsManager.clear_results()
+                if st.button("Clear All Results", help="Clear all stored results", on_click=ResultsManager.reset_ephemeral_state):
                     st.rerun()
