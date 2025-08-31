@@ -892,7 +892,35 @@ def render_results_column():
                 )
 
         else:
-            st.error("❌ Missing spectrum data. Please upload a file and run analysis.")
+            st.markdown(
+                """
+            ##### How to Get Started
+
+            1.  **Select an AI Model:** Use the dropdown menu in the sidebar to choose a model.
+            2.  **Provide Your Data:** Select one of the three input modes:
+                -   **Upload File:** Analyze a single spectrum.
+                -   **Batch Upload:** Process multiple files at once.
+                -   **Sample Data:** Explore functionality with pre-loaded examples.
+            3.  **Run Analysis:** Click the "Run Analysis" button to generate the classification results.
+
+            ---
+
+            ##### Supported Data Format
+
+            -   **File Type:** Plain text (`.txt`)
+            -   **Content:** Must contain two columns: `wavenumber` and `intensity`.
+            -   **Separators:** Values can be separated by spaces or commas.
+            -   **Preprocessing:** Your spectrum will be automatically resampled to 500 data points to match the model's input requirements.
+
+            ---
+
+            ##### Example Applications
+            - 🔬 Research on polymer degradation
+            - ♻️ Recycling feasibility assessment
+            - 🌱 Sustainability impact studies
+            - 🏭 Quality control in manufacturing
+            """
+            )
     else:
         # ===Getting Started===
         st.markdown(
