@@ -10,6 +10,11 @@ from pathlib import Path
 import io
 
 
+def local_css(file_name):
+    with open(file_name, encoding="utf-8") as f:
+        st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
+
+
 class ResultsManager:
     """Manages session-wide results for multi-file inference"""
 
@@ -231,6 +236,7 @@ class ResultsManager:
             )
             return
 
+        local_css("static/style.css")
         st.subheader(f"Inference Results ({len(df)} files)")
 
         # ==Summary stats==
@@ -254,33 +260,52 @@ class ResultsManager:
 
             # ==Results Table==
             st.dataframe(df, use_container_width=True)
+            with st.container(border=None, key="page-link-container"):
+                st.page_link(
+                    "pages/2_📊_dashboard.py",
+                    label="Inference Analysis Dashboard",
+                    help="Dive deeper into your batch results.",
+                    use_container_width=False,
+                )
 
             # ==Export Button==
-            col1, col2, col3 = st.columns([1, 1, 1])
+            with st.container(border=None, key="buttons-container"):
+                col1, col2, col3 = st.columns([1, 1, 1])
 
-            with col1:
-                csv_data = ResultsManager.export_to_csv()
-                if csv_data:
-                    st.download_button(
-                        label="Download CSV",
-                        data=csv_data,
-                        file_name=f"polymer_results_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
-                        mime="text/csv",
-                    )
+                with col1:
+                    csv_data = ResultsManager.export_to_csv()
+                    if csv_data:
+                        with st.container(border=None, key="csv-button"):
+                            st.download_button(
+                                label="Download CSV",
+                                data=csv_data,
+                                file_name=f"polymer_results_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                                mime="text/csv",
+                                help="Export Results to CSV",
+                                use_container_width=True,
+                                type="tertiary",
+                            )
 
-            with col2:
-                json_data = ResultsManager.export_to_json()
-                if json_data:
-                    st.download_button(
-                        label="📥 Download JSON",
-                        data=json_data,
-                        file_name=f"polymer_results_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
-                        mime="application/json",
-                    )
+                with col2:
+                    json_data = ResultsManager.export_to_json()
+                    if json_data:
+                        with st.container(border=None, key="json-button"):
+                            st.download_button(
+                                label="Download JSON",
+                                data=json_data,
+                                file_name=f"polymer_results_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
+                                mime="application/json",
+                                help="Export Results to JSON",
+                                type="tertiary",
+                                use_container_width=True,
+                            )
 
-            with col3:
-                st.button(
-                    "Clear All Results",
-                    help="Clear all stored results",
-                    on_click=ResultsManager.reset_ephemeral_state,
-                )
+                with col3:
+                    with st.container(border=None, key="clearall-button"):
+                        st.button(
+                            label="Clear All Results",
+                            help="Clear all stored results",
+                            on_click=ResultsManager.reset_ephemeral_state,
+                            use_container_width=True,
+                            type="tertiary",
+                        )

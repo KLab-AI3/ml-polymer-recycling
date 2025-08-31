@@ -140,9 +140,49 @@ div[data-testid="stMetricLabel"] {
 /* ====== Interactivity & Accessibility ====== */
 :focus-visible {
     /* The focus outline now uses the theme's primary color */
-    outline: 2px solid var(--primary);
+    outline: 20px solid var(--primary);
     outline-offset: 2px;
     border-radius: 8px;
 }
 
-</style>
+.st-key-csv-button,
+.st-key-json-button,
+.st-key-clearall-button {
+    display: block;
+    border: 1px double #1a1a1a2d;
+    max-width: 100%;
+    border-radius: 8px;
+    background-color: #F0F0ED;
+
+
+}
+
+.st-key-page-link-container {
+    padding: 5px;
+    display: inline-block;
+    justify-items: center;
+    align-self: center;
+    align-content: center;
+    border: 1px double #1a1a1a2d;
+    border-radius: 8px;
+    background-color: #F0F0ED;
+    max-width: 100%;
+
+}
+
+.st-key-buttons-container {
+    display: flex;
+    max-width: 100%;
+}
+
+
+
+/* .st-key-csv-button:hover,
+.st-key-json-button:hover,
+.st-key-clearall-button:hover {
+    padding: .25px;
+}
+.st-key-page-link {
+    color: var(--text-color);
+    text-decoration: none;
+}*/
