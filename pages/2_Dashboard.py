@@ -15,7 +15,7 @@ if "selected_spectrum_file" not in st.session_state:
     )
 # --- END INITIALIZATION ---
 
-st.title("📊 Interactive Analysis Dashboard")
+st.title("Interactive Analysis Dashboard")
 st.markdown(
     "Dive deeper into your batch results. Use the charts below to analyze model performance."
 )
