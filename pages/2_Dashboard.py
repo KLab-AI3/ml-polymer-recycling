@@ -1,4 +1,4 @@
-# In pages/2_📊_Dashboard.py
+# In pages/2_Dashboard.py
 
 import streamlit as st
 from utils.results_manager import ResultsManager
