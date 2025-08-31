@@ -349,9 +349,7 @@ class BatchAnalysis:
 
         # Only render if a file has been selected in the current session
         if selected_file:
-            with st.expander(
-                f"🔬 View Spectrum for: **{selected_file}**", expanded=True
-            ):
+            with st.expander(f"View Spectrum for: **{selected_file}**", expanded=True):
                 # Retrieve the full, detailed record for the selected file
                 spectrum_data = ResultsManager.get_spectrum_data_for_file(selected_file)
 

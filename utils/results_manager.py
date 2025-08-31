@@ -6,6 +6,7 @@ import pandas as pd
 import json
 from datetime import datetime
 from typing import Dict, List, Any, Optional
+import numpy as np
 from pathlib import Path
 import io
 
@@ -71,6 +72,32 @@ class ResultsManager:
     def clear_results() -> None:
         """Clear all stored results"""
         st.session_state[ResultsManager.RESULTS_KEY] = []
+
+    @staticmethod
+    def get_spectrum_data_for_file(filename: str) -> Optional[Dict[str, np.ndarray]]:
+        """
+        Retrieves raw and resampled spectrum data for a given filename.
+        Returns None if no data is found for the filename or if data is incomplete.
+        """
+        results = ResultsManager.get_results()
+        for r in results:
+            if r["filename"] == filename:
+                # Ensure all required keys are present and not None
+                if all(
+                    r.get(k) is not None
+                    for k in ["x_raw", "y_raw", "x_resampled", "y_resampled"]
+                ):
+                    return {
+                        "x_raw": r["x_raw"],
+                        "y_raw": r["y_raw"],
+                        "x_resampled": r["x_resampled"],
+                        "y_resampled": r["y_resampled"],
+                    }
+                else:
+                    # If the metadata exists but spectrum data is missing for this entry,
+                    # it means it was processed before we started storing spectrums.
+                    return None
+        return None  # Return None if filename not found
 
     @staticmethod
     def get_results_dataframe() -> pd.DataFrame:
