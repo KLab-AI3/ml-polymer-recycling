@@ -5,6 +5,7 @@ numpy
 pandas
 pydantic
 scikit-learn
+seaborn
 scipy
 streamlit
 torch
