@@ -31,7 +31,7 @@ class ResultsManager:
         logits: List[float],
         ground_truth: Optional[int] = None,
         processing_time: float = 0.0,
-        metadata: Optional[Dict[str, Any]] = None
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> None:
         """Add a single inference result to the results table"""
         ResultsManager.init_results_table()
@@ -46,7 +46,7 @@ class ResultsManager:
             "logits": logits,
             "ground_truth": ground_truth,
             "processing_time": processing_time,
-            "metadata": metadata or {}
+            "metadata": metadata or {},
         }
 
         st.session_state[ResultsManager.RESULTS_KEY].append(result)
@@ -84,9 +84,17 @@ class ResultsManager:
                 "Prediction": result["prediction"],
                 "Predicted Class": result["predicted_class"],
                 "Confidence": f"{result['confidence']:.3f}",
-                "Stable Logit": f"{result['logits'][0]:.3f}" if len(result['logits']) > 0 else "N/A",
-                "Weathered Logit": f"{result['logits'][1]:.3f}" if len(result['logits']) > 1 else "N/A",
-                "Ground Truth": result["ground_truth"] if result["ground_truth"] is not None else "Unknown",
+                "Stable Logit": (
+                    f"{result['logits'][0]:.3f}" if len(result["logits"]) > 0 else "N/A"
+                ),
+                "Weathered Logit": (
+                    f"{result['logits'][1]:.3f}" if len(result["logits"]) > 1 else "N/A"
+                ),
+                "Ground Truth": (
+                    result["ground_truth"]
+                    if result["ground_truth"] is not None
+                    else "Unknown"
+                ),
                 "Processing Time (s)": f"{result['processing_time']:.3f}",
             }
             df_data.append(row)
@@ -103,7 +111,7 @@ class ResultsManager:
         # ===Use StringIO to create CSV in memory===
         csv_buffer = io.StringIO()
         df.to_csv(csv_buffer, index=False)
-        return csv_buffer.getvalue().encode('utf-8')
+        return csv_buffer.getvalue().encode("utf-8")
 
     @staticmethod
     def export_to_json() -> str:
@@ -126,12 +134,16 @@ class ResultsManager:
             "stable_predictions": sum(1 for r in results if r["prediction"] == 0),
             "weathered_predictions": sum(1 for r in results if r["prediction"] == 1),
             "avg_confidence": sum(r["confidence"] for r in results) / len(results),
-            "avg_processing_time": sum(r["processing_time"] for r in results) / len(results),
-            "files_with_ground_truth": sum(1 for r in results if r["ground_truth"] is not None),
+            "avg_processing_time": sum(r["processing_time"] for r in results)
+            / len(results),
+            "files_with_ground_truth": sum(
+                1 for r in results if r["ground_truth"] is not None
+            ),
         }
         # ===Calculate accuracy if ground truth is available===
         correct_predictions = sum(
-            1 for r in results
+            1
+            for r in results
             if r["ground_truth"] is not None and r["prediction"] == r["ground_truth"]
         )
         total_with_gt = stats["files_with_ground_truth"]
@@ -164,11 +176,13 @@ class ResultsManager:
             "status_type": "info",
             "input_text": None,
             "filename": None,
-            "input_source": None,     # "upload", "batch" or "sample"
+            "input_source": None,  # "upload", "batch" or "sample"
             "sample_select": "-- Select Sample --",
-            "input_mode": "Upload File",   # controls which pane is visible
+            "input_mode": "Upload File",  # controls which pane is visible
             "inference_run_once": False,
-            "x_raw": None, "y_raw": None, "y_resampled": None,
+            "x_raw": None,
+            "y_raw": None,
+            "y_resampled": None,
             "log_messages": [],
             "uploader_version": 0,
             "current_upload_key": "upload_txt_0",
@@ -184,6 +198,9 @@ class ResultsManager:
     @staticmethod
     def reset_ephemeral_state():
         """Comprehensive reset for the entire app state."""
+
+        current_version = st.session_state.get("uploader_version", 0)
+
         # Define keys that should NOT be cleared by a full reset
         keep_keys = {"model_select", "input_mode"}
 
@@ -191,12 +208,17 @@ class ResultsManager:
             if k not in keep_keys:
                 st.session_state.pop(k, None)
 
-        # Re-initialize the core state after clearing
-        ResultsManager.init_session_state()
+        st.session_state["status_message"] = "Ready to analyze polymer spectra"
+        st.session_state["status_type"] = "info"
+        st.session_state["batch_files"] = []
+        st.session_state["inference_run_once"] = True
+        st.session_state[""] = ""
 
-        # CRITICAL: Bump the uploader version to force a widget reset
-        st.session_state["uploader_version"] += 1
-        st.session_state["current_upload_key"] = f"upload_txt_{st.session_state['uploader_version']}"
+        # CRITICAL: Increment the preserved version and re-assign it
+        st.session_state["uploader_version"] = current_version + 1
+        st.session_state["current_upload_key"] = (
+            f"upload_txt_{st.session_state['uploader_version']}"
+        )
 
     @staticmethod
     def display_results_table() -> None:
@@ -205,7 +227,8 @@ class ResultsManager:
 
         if df.empty:
             st.info(
-                "No inference results yet. Upload files and run analysis to see results here.")
+                "No inference results yet. Upload files and run analysis to see results here."
+            )
             return
 
         st.subheader(f"Inference Results ({len(df)} files)")
@@ -220,7 +243,9 @@ class ResultsManager:
                 st.metric("Avg Confidence", f"{stats['avg_confidence']:.3f}")
             with col3:
                 st.metric(
-                    "Stable/Weathered", f"{stats['stable_predictions']}/{stats['weathered_predictions']}")
+                    "Stable/Weathered",
+                    f"{stats['stable_predictions']}/{stats['weathered_predictions']}",
+                )
             with col4:
                 if stats["accuracy"] is not None:
                     st.metric("Accuracy", f"{stats['accuracy']:.3f}")
@@ -231,7 +256,7 @@ class ResultsManager:
             st.dataframe(df, use_container_width=True)
 
             # ==Export Button==
-            col1, col2, col3 = st.columns([1, 1, 2])
+            col1, col2, col3 = st.columns([1, 1, 1])
 
             with col1:
                 csv_data = ResultsManager.export_to_csv()
@@ -240,7 +265,7 @@ class ResultsManager:
                         label="Download CSV",
                         data=csv_data,
                         file_name=f"polymer_results_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
-                        mime="text/csv"
+                        mime="text/csv",
                     )
 
             with col2:
@@ -250,9 +275,12 @@ class ResultsManager:
                         label="📥 Download JSON",
                         data=json_data,
                         file_name=f"polymer_results_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
-                        mime="application/json"
+                        mime="application/json",
                     )
 
             with col3:
-                if st.button("Clear All Results", help="Clear all stored results", on_click=ResultsManager.reset_ephemeral_state):
-                    st.rerun()
+                st.button(
+                    "Clear All Results",
+                    help="Clear all stored results",
+                    on_click=ResultsManager.reset_ephemeral_state,
+                )
