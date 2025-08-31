@@ -77,6 +77,9 @@ def on_input_mode_change():
 
 def reset_ephemeral_state():
     """Comprehensive reset for the entire app state."""
+
+    current_version = st.session_state.get("uploader_version", 0)
+
     # Define keys that should NOT be cleared by a full reset
     keep_keys = {"model_select", "input_mode"}
 
@@ -84,11 +87,16 @@ def reset_ephemeral_state():
         if k not in keep_keys:
             st.session_state.pop(k, None)
 
-    # Re-initialize the core state after clearing
-    init_session_state()
+    # Manurally re-establish a clean state
+    # Re-seed essential state
+    st.session_state["status_message"] = "Ready to analyze polymer spectra"
+    st.session_state["status_type"] = "info"
+    st.session_state["batch_files"] = []
+    st.session_state["inference_run_once"] = True
+    st.session_state[""] = ""
 
-    # CRITICAL: Bump the uploader version to force a widget reset
-    st.session_state["uploader_version"] += 1
+    # CRITICAL: Increment the preserved version and re-assign it
+    st.session_state["uploader_version"] = current_version + 1
     st.session_state["current_upload_key"] = (
         f"upload_txt_{st.session_state['uploader_version']}"
     )
