@@ -401,15 +401,6 @@ def render_results_column():
         batch_results = st.session_state["batch_results"]
         display_batch_results(batch_results)
 
-        # Add session results table
-        st.markdown("---")
-
-        st.button(
-            "Clear Results",
-            on_click=clear_batch_results,
-            help="Clear all uploaded files and results.",
-        )
-
         ResultsManager.display_results_table()
 
     elif st.session_state.get("inference_run_once", False) and not is_batch_mode:
@@ -805,7 +796,8 @@ def render_results_column():
                         - Well-preserved molecular structure
                         - Minimal oxidative degradation
                         - Characteristic Raman peaks intact
-                        - Suitable for recycling applications
+                        - 
+                        itable for recycling applications
                         """
                         )
 
