@@ -7,8 +7,47 @@ import seaborn as sns
 from sklearn.metrics import confusion_matrix
 import matplotlib.pyplot as plt
 from datetime import datetime
+from contextlib import contextmanager  # Correctly imported for use with @contextmanager
 
 from config import LABEL_MAP  # Assuming LABEL_MAP is correctly defined in config.py
+
+# --- ADD THESE IMPORTS AT THE TOP OF THE FILE ---
+from utils.results_manager import ResultsManager
+from modules.ui_components import create_spectrum_plot
+import hashlib
+
+
+# --- NEW HELPER FUNCTION for theme-aware plots ---
+@contextmanager
+def theme_aware_plot():
+    """A context manager to make Matplotlib plots respect Streamlit's theme."""
+    # Get the current theme from Streamlit's config with error handling
+    try:
+        theme_opts = st.get_option("theme") or {}
+    except RuntimeError:
+        # Fallback to empty dict if theme config is not available
+        theme_opts = {}
+
+    text_color = theme_opts.get("textColor", "#000000")
+    bg_color = theme_opts.get("backgroundColor", "#FFFFFF")
+
+    # Set Matplotlib's rcParams to match the theme
+    with plt.rc_context(
+        {
+            "figure.facecolor": bg_color,
+            "axes.facecolor": bg_color,
+            "text.color": text_color,
+            "axes.labelcolor": text_color,
+            "xtick.color": text_color,
+            "ytick.color": text_color,
+            "grid.color": text_color,
+            "axes.edgecolor": text_color,
+        }
+    ):
+        yield
+
+
+# --- END HELPER FUNCTION ---
 
 
 class BatchAnalysis:
@@ -66,92 +105,98 @@ class BatchAnalysis:
             ),
         )
 
+    # In modules/analyzer.py
+
     def render_visual_diagnostics(self):
         """
-        Renders the main diagnostic plots with improved aesthetics and layout.
+        Renders the main diagnostic plots with improved aesthetics, layout,
+        and automatic theme adaptation.
         """
         st.markdown("##### Visual Analysis")
         if not self.has_ground_truth:
-            st.info(
-                "Visual analysis requires Ground Truth data, which is not available for this batch."
-            )
+            st.info("Visual analysis requires Ground Truth data for this batch.")
             return
 
         valid_gt_df = self.df.dropna(subset=["Ground Truth"])
 
-        viz_cols = st.columns(2)
+        # Use a single row of columns for the two main plots
+        plot_col1, plot_col2 = st.columns(2)
 
-        # --- Chart 1: Confusion Matrix (Aesthetically Improved) ---
-        with viz_cols[0]:
-            st.markdown("**Confusion Matrix**")
-            cm = confusion_matrix(
-                valid_gt_df["Ground Truth"],
-                valid_gt_df["Prediction"],
-                labels=list(LABEL_MAP.keys()),
-            )
-
-            # Use Matplotlib's constrained_layout for better sizing
-            fig, ax = plt.subplots(figsize=(5, 4), constrained_layout=True)
-
-            sns.heatmap(
-                cm,
-                annot=True,
-                fmt="g",
-                ax=ax,
-                cmap="Blues",
-                xticklabels=list(LABEL_MAP.values()),
-                yticklabels=list(LABEL_MAP.values()),
-            )
-
-            # Improve label readability and appearance
-            ax.set_ylabel("Actual Class", fontsize=12)
-            ax.set_xlabel("Predicted Class", fontsize=12)
-            ax.set_xticklabels(
-                ax.get_xticklabels(), rotation=45, ha="right"
-            )  # Rotate labels to prevent overlap
-            ax.set_yticklabels(ax.get_yticklabels(), rotation=0)
-
-            # Use `use_container_width=True` to let Streamlit manage the plot's width
-            st.pyplot(fig, use_container_width=True)
-
-        # --- Chart 2: Confidence vs. Correctness Box Plot (Aesthetically Improved) ---
-        with viz_cols[1]:
-            st.markdown("**Confidence Analysis**")
-            valid_gt_df["Result"] = np.where(
-                valid_gt_df["Prediction"] == valid_gt_df["Ground Truth"],
-                "Correct",
-                "Incorrect",
-            )
-
-            fig, ax = plt.subplots(figsize=(5, 4), constrained_layout=True)
-
-            sns.boxplot(
-                x="Result",
-                y="Confidence",
-                data=valid_gt_df,
-                ax=ax,
-                palette={"Correct": "#64C764", "Incorrect": "#E57373"},
-            )  # Use softer colors
-
-            ax.set_ylabel("Model Confidence", fontsize=12)
-            ax.set_xlabel("Prediction Result", fontsize=12)
-
-            st.pyplot(fig, use_container_width=True)
-
-        # ... (The interactive button grid for the confusion matrix remains the same) ...
-        st.markdown("Click on a cell below to filter the results grid:")
-        cm_labels = list(LABEL_MAP.values())
-        for i, actual_label in enumerate(cm_labels):
-            cols = st.columns(len(cm_labels))
-            for j, predicted_label in enumerate(cm_labels):
-                cell_value = cm[i, j]
-                cols[j].button(
-                    f"Actual: {actual_label}\nPred: {predicted_label} ({cell_value})",
-                    key=f"cm_cell_{i}_{j}",
-                    on_click=self._set_cm_filter,
-                    args=(i, j, actual_label, predicted_label),
-                    use_container_width=True,
+        # --- Chart 1: Confusion Matrix ---
+        with plot_col1:  # Content for the first column
+            with st.container(border=True):  # Group plot and buttons visually
+                st.markdown("**Confusion Matrix**")
+                cm = confusion_matrix(
+                    valid_gt_df["Ground Truth"],
+                    valid_gt_df["Prediction"],
+                    labels=list(LABEL_MAP.keys()),
                 )
+
+                with theme_aware_plot():  # Apply theme-aware styling
+                    fig, ax = plt.subplots(figsize=(5, 4), constrained_layout=True)
+                    sns.heatmap(
+                        cm,
+                        annot=True,
+                        fmt="g",
+                        ax=ax,
+                        cmap="Blues",
+                        xticklabels=list(LABEL_MAP.values()),
+                        yticklabels=list(LABEL_MAP.values()),
+                    )
+                    ax.set_ylabel("Actual Class", fontsize=12)
+                    ax.set_xlabel("Predicted Class", fontsize=12)
+                    ax.set_xticklabels(ax.get_xticklabels(), rotation=45, ha="right")
+                    ax.set_yticklabels(ax.get_yticklabels(), rotation=0)
+                    st.pyplot(fig, use_container_width=True)  # Render the plot
+
+                st.caption("Click a cell below to filter the data grid:")
+
+                # Render CM filter buttons directly below the plot in the same column
+                cm_labels = list(LABEL_MAP.values())
+                for i, actual_label in enumerate(cm_labels):
+                    btn_cols_row = st.columns(
+                        len(cm_labels)
+                    )  # Create a row of columns for buttons
+                    for j, predicted_label in enumerate(cm_labels):
+                        cell_value = cm[i, j]
+                        btn_cols_row[j].button(  # Button for each cell
+                            f"Actual: {actual_label}\nPred: {predicted_label} ({cell_value})",
+                            key=f"cm_cell_{i}_{j}",
+                            on_click=self._set_cm_filter,
+                            args=(i, j, actual_label, predicted_label),
+                            use_container_width=True,
+                        )
+                # Clear filter button for CM
+                if st.session_state.get("cm_filter_active", False):
+                    st.button(
+                        "Clear Matrix Filter",
+                        on_click=self._clear_cm_filter,
+                        key="clear_cm_filter_btn_below",
+                    )
+
+        # --- Chart 2: Confidence vs. Correctness Box Plot ---
+        with plot_col2:  # Content for the second column
+            with st.container(border=True):  # Group plot visually
+                st.markdown("**Confidence Analysis**")
+                valid_gt_df["Result"] = np.where(
+                    valid_gt_df["Prediction"] == valid_gt_df["Ground Truth"],
+                    "Correct",
+                    "Incorrect",
+                )
+
+                with theme_aware_plot():  # Apply theme-aware styling
+                    fig, ax = plt.subplots(figsize=(5, 4), constrained_layout=True)
+                    sns.boxplot(
+                        x="Result",
+                        y="Confidence",
+                        data=valid_gt_df,
+                        ax=ax,
+                        palette={"Correct": "#64C764", "Incorrect": "#E57373"},
+                    )
+                    ax.set_ylabel("Model Confidence", fontsize=12)
+                    ax.set_xlabel("Prediction Result", fontsize=12)
+                    st.pyplot(fig, use_container_width=True)
+        st.divider()  # Divider after the entire visual section
 
     def _set_cm_filter(
         self,
@@ -294,16 +339,80 @@ class BatchAnalysis:
                 st.session_state.selected_spectrum_file = None
             # --- END ROBUST HANDLING ---
 
+    # --- ADD THIS ENTIRE NEW METHOD ---
+    def render_selected_spectrum(self):
+        """
+        Renders an expander with the spectrum plot for the currently selected file.
+        This is called after the data grid.
+        """
+        selected_file = st.session_state.get("selected_spectrum_file")
+
+        # Only render if a file has been selected in the current session
+        if selected_file:
+            with st.expander(
+                f"🔬 View Spectrum for: **{selected_file}**", expanded=True
+            ):
+                # Retrieve the full, detailed record for the selected file
+                spectrum_data = ResultsManager.get_spectrum_data_for_file(selected_file)
+
+                # Check if the detailed data was successfully retrieved and contains all necessary arrays
+                if spectrum_data and all(
+                    spectrum_data.get(k) is not None
+                    for k in ["x_raw", "y_raw", "x_resampled", "y_resampled"]
+                ):
+                    # Generate a unique cache key for the plot to avoid re-generating it unnecessarily
+                    cache_key = hashlib.md5(
+                        (
+                            f"{spectrum_data['x_raw'].tobytes()}"
+                            f"{spectrum_data['y_raw'].tobytes()}"
+                            f"{spectrum_data['x_resampled'].tobytes()}"
+                            f"{spectrum_data['y_resampled'].tobytes()}"
+                        ).encode()
+                    ).hexdigest()
+
+                    # Call the plotting function from ui_components
+                    plot_image = create_spectrum_plot(
+                        spectrum_data["x_raw"],
+                        spectrum_data["y_raw"],
+                        spectrum_data["x_resampled"],
+                        spectrum_data["y_resampled"],
+                        _cache_key=cache_key,
+                    )
+                    st.image(
+                        plot_image,
+                        caption=f"Raw vs. Resampled Spectrum for {selected_file}",
+                        use_container_width=True,
+                    )
+                else:
+                    st.warning(
+                        f"Could not retrieve spectrum data for '{selected_file}'. The data might not have been stored during the initial run."
+                    )
+
+    # --- END NEW METHOD ---
+
     def render(self):
-        """The main public method to render the entire dashboard."""
+        """
+        The main public method to render the entire dashboard using a more
+        organized and streamlined tab-based layout.
+        """
         if self.df.empty:
             st.info(
                 "The results table is empty. Please run an analysis on the 'Upload and Run' page."
             )
             return
 
+        # --- Tier 1: KPIs (Always visible at the top) ---
         self.render_kpis()
         st.divider()
-        self.render_visual_diagnostics()
-        st.divider()
-        self.render_interactive_grid()
+
+        # --- Tier 2: Tabbed Interface for Deeper Analysis ---
+        tab1, tab2 = st.tabs(["📊 Visual Diagnostics", "🗂️ Results Explorer"])
+
+        with tab1:
+            # The visual diagnostics (Confusion Matrix, etc.) go here.
+            self.render_visual_diagnostics()
+
+        with tab2:
+            # The interactive grid AND the spectrum viewer it controls go here.
+            self.render_interactive_grid()
+            self.render_selected_spectrum()

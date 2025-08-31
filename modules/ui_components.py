@@ -180,22 +180,22 @@ def render_sidebar():
         with st.expander("About This App", icon=":material/info:", expanded=False):
             st.markdown(
                 """
-            AI-Driven Polymer Aging Prediction and Classification
+            **AI-Driven Polymer Aging Prediction and Classification**
 
-            **Purpose**: Classify polymer degradation using AI
-            **Input**: Raman spectroscopy `.txt` files
-            **Models**: CNN architectures for binary classification
-            **Next**: More trained CNNs in evaluation pipeline
-
-
-            **Contributors**
-            Dr. Sanmukh Kuppannagari (Mentor)
-            Dr. Metin Karailyan (Mentor)
-            Jaser Hasan (Author)
+            **Purpose**: Classify polymer degradation using AI<br>
+            **Input**: Raman spectroscopy .txt files<br>
+            **Models**: CNN architectures for binary classification<br>
+            **Next**: More trained CNNs in evaluation pipeline<br>
 
 
-            **Links**
-            [Live HF Space](https://huggingface.co/spaces/dev-jas/polymer-aging-ml)
+            **Contributors**<br>
+            - Dr. Sanmukh Kuppannagari (Mentor)<br>
+            - Dr. Metin Karailyan (Mentor)<br>
+            - Jaser Hasan (Author)<br>
+
+
+            **Links**<br>
+            [HF Space](https://huggingface.co/spaces/dev-jas/polymer-aging-ml)<br>
             [GitHub Repository](https://github.com/KLab-AI3/ml-polymer-recycling)
 
 
@@ -203,6 +203,7 @@ def render_sidebar():
             Neo et al., 2023, *Resour. Conserv. Recycl.*, 188, 106718.
             [https://doi.org/10.1016/j.resconrec.2022.106718](https://doi.org/10.1016/j.resconrec.2022.106718)
             """,
+                unsafe_allow_html=True,
             )
 
 
