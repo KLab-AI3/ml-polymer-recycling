@@ -17,21 +17,21 @@ from modules.ui_components import create_spectrum_plot
 import hashlib
 
 
-# --- NEW HELPER FUNCTION for theme-aware plots ---
+# --- NEW: Centralized plot styling helper ---
 @contextmanager
-def theme_aware_plot():
-    """A context manager to make Matplotlib plots respect Streamlit's theme."""
-    # Get the current theme from Streamlit's config with error handling
+def plot_style_context(figsize=(5, 4), constrained_layout=True, **kwargs):
+    """
+    A context manager to apply consistent Matplotlib styling and
+    make plots theme-aware.
+    """
     try:
         theme_opts = st.get_option("theme") or {}
     except RuntimeError:
         # Fallback to empty dict if theme config is not available
         theme_opts = {}
-
     text_color = theme_opts.get("textColor", "#000000")
     bg_color = theme_opts.get("backgroundColor", "#FFFFFF")
 
-    # Set Matplotlib's rcParams to match the theme
     with plt.rc_context(
         {
             "figure.facecolor": bg_color,
@@ -42,12 +42,18 @@ def theme_aware_plot():
             "ytick.color": text_color,
             "grid.color": text_color,
             "axes.edgecolor": text_color,
+            "axes.titlecolor": text_color,  # Ensure title color matches
+            "figure.autolayout": True,  # Auto-adjusts subplot params for a tight layout
         }
     ):
-        yield
+        fig, ax = plt.subplots(
+            figsize=figsize, constrained_layout=constrained_layout, **kwargs
+        )
+        yield fig, ax
+        plt.close(fig)  # Always close figure to prevent memory leaks
 
 
-# --- END HELPER FUNCTION ---
+# --- END NEW HELPER ---
 
 
 class BatchAnalysis:
@@ -105,12 +111,10 @@ class BatchAnalysis:
             ),
         )
 
-    # In modules/analyzer.py
-
     def render_visual_diagnostics(self):
         """
-        Renders the main diagnostic plots with improved aesthetics, layout,
-        and automatic theme adaptation.
+        Renders diagnostic plots with corrected aesthetics and a robust,
+        interactive drill-down filter using st.selectbox.
         """
         st.markdown("##### Visual Analysis")
         if not self.has_ground_truth:
@@ -118,22 +122,18 @@ class BatchAnalysis:
             return
 
         valid_gt_df = self.df.dropna(subset=["Ground Truth"])
-
-        # Use a single row of columns for the two main plots
         plot_col1, plot_col2 = st.columns(2)
 
-        # --- Chart 1: Confusion Matrix ---
-        with plot_col1:  # Content for the first column
-            with st.container(border=True):  # Group plot and buttons visually
+        # --- Chart 1: Confusion Matrix (Aesthetically Corrected) ---
+        with plot_col1:
+            with st.container(border=True):
                 st.markdown("**Confusion Matrix**")
                 cm = confusion_matrix(
                     valid_gt_df["Ground Truth"],
                     valid_gt_df["Prediction"],
                     labels=list(LABEL_MAP.keys()),
                 )
-
-                with theme_aware_plot():  # Apply theme-aware styling
-                    fig, ax = plt.subplots(figsize=(5, 4), constrained_layout=True)
+                with plot_style_context() as (fig, ax):
                     sns.heatmap(
                         cm,
                         annot=True,
@@ -145,58 +145,98 @@ class BatchAnalysis:
                     )
                     ax.set_ylabel("Actual Class", fontsize=12)
                     ax.set_xlabel("Predicted Class", fontsize=12)
-                    ax.set_xticklabels(ax.get_xticklabels(), rotation=45, ha="right")
+
+                    # --- AESTHETIC FIX: Rotate X-labels vertically for a compact look ---
+                    ax.set_xticklabels(ax.get_xticklabels(), rotation=90)
                     ax.set_yticklabels(ax.get_yticklabels(), rotation=0)
-                    st.pyplot(fig, use_container_width=True)  # Render the plot
+                    ax.set_title("Prediction vs. Actual (Counts)", fontsize=14)
+                    st.pyplot(fig, use_container_width=True)
 
-                st.caption("Click a cell below to filter the data grid:")
-
-                # Render CM filter buttons directly below the plot in the same column
-                cm_labels = list(LABEL_MAP.values())
-                for i, actual_label in enumerate(cm_labels):
-                    btn_cols_row = st.columns(
-                        len(cm_labels)
-                    )  # Create a row of columns for buttons
-                    for j, predicted_label in enumerate(cm_labels):
-                        cell_value = cm[i, j]
-                        btn_cols_row[j].button(  # Button for each cell
-                            f"Actual: {actual_label}\nPred: {predicted_label} ({cell_value})",
-                            key=f"cm_cell_{i}_{j}",
-                            on_click=self._set_cm_filter,
-                            args=(i, j, actual_label, predicted_label),
-                            use_container_width=True,
-                        )
-                # Clear filter button for CM
-                if st.session_state.get("cm_filter_active", False):
-                    st.button(
-                        "Clear Matrix Filter",
-                        on_click=self._clear_cm_filter,
-                        key="clear_cm_filter_btn_below",
-                    )
-
-        # --- Chart 2: Confidence vs. Correctness Box Plot ---
-        with plot_col2:  # Content for the second column
-            with st.container(border=True):  # Group plot visually
+        # --- Chart 2: Confidence vs. Correctness Box Plot (Unchanged) ---
+        with plot_col2:
+            with st.container(border=True):
                 st.markdown("**Confidence Analysis**")
                 valid_gt_df["Result"] = np.where(
                     valid_gt_df["Prediction"] == valid_gt_df["Ground Truth"],
-                    "Correct",
-                    "Incorrect",
+                    "✅ Correct",
+                    "❌ Incorrect",
                 )
-
-                with theme_aware_plot():  # Apply theme-aware styling
-                    fig, ax = plt.subplots(figsize=(5, 4), constrained_layout=True)
+                with plot_style_context() as (fig, ax):
                     sns.boxplot(
                         x="Result",
                         y="Confidence",
                         data=valid_gt_df,
                         ax=ax,
-                        palette={"Correct": "#64C764", "Incorrect": "#E57373"},
+                        palette={"✅ Correct": "lightgreen", "❌ Incorrect": "salmon"},
                     )
                     ax.set_ylabel("Model Confidence", fontsize=12)
-                    ax.set_xlabel("Prediction Result", fontsize=12)
+                    ax.set_xlabel("Prediction Outcome", fontsize=12)
+                    ax.set_title("Confidence Distribution by Outcome", fontsize=14)
                     st.pyplot(fig, use_container_width=True)
-        st.divider()  # Divider after the entire visual section
+
+        st.divider()
+
+        # --- FUNCTIONALITY FIX: Replace Button Grid with st.selectbox ---
+        st.markdown("###### Interactive Confusion Matrix Drill-Down")
+        st.caption(
+            "Select a cell from the dropdown to filter the data grid in the 'Results Explorer' tab."
+        )
+
+        # Create a list of options for the selectbox from the confusion matrix
+        cm = confusion_matrix(
+            valid_gt_df["Ground Truth"],
+            valid_gt_df["Prediction"],
+            labels=list(LABEL_MAP.keys()),
+        )
+        cm_labels = list(LABEL_MAP.values())
+        options = ["-- Select a cell to filter --"]
+
+        # This nested loop creates the human-readable options for the dropdown
+        for i, actual_label in enumerate(cm_labels):
+            for j, predicted_label in enumerate(cm_labels):
+                cell_value = cm[i, j]
+                # We only add cells with content to the dropdown to avoid clutter
+                if cell_value > 0:
+                    option_str = f"Actual: {actual_label} | Predicted: {predicted_label} ({cell_value} files)"
+                    options.append(option_str)
+
+        # The selectbox widget, which is more robust for state management
+        selected_option = st.selectbox(
+            "Drill-Down Filter",
+            options=options,
+            key="cm_selectbox",  # Give it a key to track its state
+            index=0,  # Default to the placeholder
+        )
+
+        # Logic to activate or deactivate the filter based on selection
+        if selected_option != "-- Select a cell to filter --":
+            # Parse the selection to get the actual and predicted classes
+            parts = selected_option.split("|")
+            actual_str = parts[0].replace("Actual: ", "").strip()
+            # FIX: Split on " (" to get the full label without the file count
+            predicted_str = parts[1].replace("Predicted: ", "").split(" (")[0].strip()
+
+            # Find the corresponding numeric indices with error handling
+            actual_matching = [k for k, v in LABEL_MAP.items() if v == actual_str]
+            predicted_matching = [k for k, v in LABEL_MAP.items() if v == predicted_str]
+
+            if not actual_matching or not predicted_matching:
+                return
+
+            actual_idx = actual_matching[0]
+            predicted_idx = predicted_matching[0]
+
+            # Use a simplified callback-like update to session state
+            st.session_state["cm_actual_filter"] = actual_idx
+            st.session_state["cm_predicted_filter"] = predicted_idx
+            st.session_state["cm_filter_label"] = (
+                f"Actual: {actual_str}, Predicted: {predicted_str}"
+            )
+            st.session_state["cm_filter_active"] = True
+        else:
+            # If the user selects the placeholder, deactivate the filter
+            if st.session_state.get("cm_filter_active", False):
+                self._clear_cm_filter()
 
     def _set_cm_filter(
         self,
@@ -235,56 +275,58 @@ class BatchAnalysis:
         # Start with a full copy of the dataframe to apply filters to
         filtered_df = self.df.copy()
 
-        # --- Filter Section ---
-        st.markdown("**Filters**")
-        filter_cols = st.columns([2, 2, 3])  # Allocate more space for the slider
+        # --- Filter Section (STREAMLINED LAYOUT) ---
+        with st.container(border=True):
+            st.markdown("**Filters**")
+            filter_row1 = st.columns([1, 1])
+            filter_row2 = st.columns(1)  # Slider takes full width
 
-        # Filter 1: By Predicted Class
-        selected_classes = filter_cols[0].multiselect(
-            "Filter by Prediction:",
-            options=self.df["Predicted Class"].unique(),
-            default=self.df["Predicted Class"].unique(),
-        )
-        filtered_df = filtered_df[filtered_df["Predicted Class"].isin(selected_classes)]
-
-        # Filter 2: By Ground Truth Correctness (if available)
-        if self.has_ground_truth:
-            filtered_df["Correct"] = (
-                filtered_df["Prediction"] == filtered_df["Ground Truth"]
+            # Filter 1: By Predicted Class
+            selected_classes = filter_row1[0].multiselect(
+                "Filter by Prediction:",
+                options=self.df["Predicted Class"].unique(),
+                default=self.df["Predicted Class"].unique(),
             )
-            correctness_options = ["✅ Correct", "❌ Incorrect"]
-
-            # Create a temporary column for display in multiselect
-            filtered_df["Result_Display"] = np.where(
-                filtered_df["Correct"], "✅ Correct", "❌ Incorrect"
-            )
-
-            selected_correctness = filter_cols[1].multiselect(
-                "Filter by Result:",
-                options=correctness_options,
-                default=correctness_options,
-            )
-            # Filter based on the boolean 'Correct' column
-            filter_correctness_bools = [
-                True if c == "✅ Correct" else False for c in selected_correctness
-            ]
             filtered_df = filtered_df[
-                filtered_df["Correct"].isin(filter_correctness_bools)
+                filtered_df["Predicted Class"].isin(selected_classes)
             ]
 
-        # --- NEW: Filter 3: By Confidence Range ---
-        min_conf, max_conf = filter_cols[2].slider(
-            "Filter by Confidence Range:",
-            min_value=0.0,
-            max_value=1.0,
-            value=(0.0, 1.0),  # Default to the full range
-            step=0.01,
-        )
-        filtered_df = filtered_df[
-            (filtered_df["Confidence"] >= min_conf)
-            & (filtered_df["Confidence"] <= max_conf)
-        ]
-        # --- END NEW FILTER ---
+            # Filter 2: By Ground Truth Correctness (if available)
+            if self.has_ground_truth:
+                filtered_df["Correct"] = (
+                    filtered_df["Prediction"] == filtered_df["Ground Truth"]
+                )
+                correctness_options = ["✅ Correct", "❌ Incorrect"]
+                filtered_df["Result_Display"] = np.where(
+                    filtered_df["Correct"], "✅ Correct", "❌ Incorrect"
+                )
+
+                selected_correctness = filter_row1[1].multiselect(
+                    "Filter by Result:",
+                    options=correctness_options,
+                    default=correctness_options,
+                )
+                filter_correctness_bools = [
+                    True if c == "✅ Correct" else False for c in selected_correctness
+                ]
+                filtered_df = filtered_df[
+                    filtered_df["Correct"].isin(filter_correctness_bools)
+                ]
+
+            # Filter 3: By Confidence Range (full width below others)
+            min_conf, max_conf = filter_row2[0].slider(
+                "Filter by Confidence Range:",
+                min_value=0.0,
+                max_value=1.0,
+                value=(0.0, 1.0),
+                step=0.01,
+                format="%.2f",  # Format slider display for clarity
+            )
+            filtered_df = filtered_df[
+                (filtered_df["Confidence"] >= min_conf)
+                & (filtered_df["Confidence"] <= max_conf)
+            ]
+        # --- END FILTER SECTION ---
 
         # Apply Confusion Matrix Drill-Down Filter (if active)
         if st.session_state.get("cm_filter_active", False):
