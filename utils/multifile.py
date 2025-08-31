@@ -5,6 +5,7 @@ from typing import List, Dict, Any, Tuple, Optional
 import time
 import streamlit as st
 import numpy as np
+import pandas as pd
 
 from .preprocessing import resample_spectrum
 from .errors import ErrorHandler, safe_execute
@@ -12,7 +13,9 @@ from .results_manager import ResultsManager
 from .confidence import calculate_softmax_confidence
 
 
-def parse_spectrum_data(text_content: str, filename: str = "unknown") -> Tuple[np.ndarray, np.ndarray]:
+def parse_spectrum_data(
+    text_content: str, filename: str = "unknown"
+) -> Tuple[np.ndarray, np.ndarray]:
     """
     Parse spectrum data from text content
 
@@ -27,13 +30,13 @@ def parse_spectrum_data(text_content: str, filename: str = "unknown") -> Tuple[n
         ValueError: If the data cannot be parsed
     """
     try:
-        lines = text_content.strip().split('\n')
+        lines = text_content.strip().split("\n")
 
         # ==Remove empty lines and comments==
         data_lines = []
         for line in lines:
             line = line.strip()
-            if line and not line.startswith('#') and not line.startswith('%'):
+            if line and not line.startswith("#") and not line.startswith("%"):
                 data_lines.append(line)
 
         if not data_lines:
@@ -46,8 +49,14 @@ def parse_spectrum_data(text_content: str, filename: str = "unknown") -> Tuple[n
             try:
                 # Handle different separators
                 parts = line.replace(",", " ").split()
-                numbers = [p for p in parts if p.replace('.', '', 1).replace(
-                    '-', '', 1).replace('+', '', 1).isdigit()]
+                numbers = [
+                    p
+                    for p in parts
+                    if p.replace(".", "", 1)
+                    .replace("-", "", 1)
+                    .replace("+", "", 1)
+                    .isdigit()
+                ]
                 if len(numbers) >= 2:
                     x_val = float(numbers[0])
                     y_val = float(numbers[1])
@@ -56,12 +65,14 @@ def parse_spectrum_data(text_content: str, filename: str = "unknown") -> Tuple[n
 
             except ValueError:
                 ErrorHandler.log_warning(
-                    f"Could not parse line {i+1}: {line}", f"Parsing {filename}")
+                    f"Could not parse line {i+1}: {line}", f"Parsing {filename}"
+                )
                 continue
 
         if len(x_vals) < 10:  # ==Need minimum points for interpolation==
             raise ValueError(
-                f"Insufficient data points ({len(x_vals)}). Need at least 10 points.")
+                f"Insufficient data points ({len(x_vals)}). Need at least 10 points."
+            )
 
         x = np.array(x_vals)
         y = np.array(y_vals)
@@ -77,7 +88,8 @@ def parse_spectrum_data(text_content: str, filename: str = "unknown") -> Tuple[n
         # Check reasonable range for Raman spectroscopy
         if min(x) < 0 or max(x) > 10000 or (max(x) - min(x)) < 100:
             raise ValueError(
-                f"Invalid wavenumber range: {min(x)} - {max(x)}. Expected ~400-4000 cm⁻¹ with span >100")
+                f"Invalid wavenumber range: {min(x)} - {max(x)}. Expected ~400-4000 cm⁻¹ with span >100"
+            )
 
         return x, y
 
@@ -91,7 +103,7 @@ def process_single_file(
     model_choice: str,
     load_model_func,
     run_inference_func,
-    label_file_func
+    label_file_func,
 ) -> Optional[Dict[str, Any]]:
     """
     Process a single spectrum file
@@ -116,7 +128,7 @@ def process_single_file(
             text_content,
             filename,
             error_context=f"parsing {filename}",
-            show_error=False
+            show_error=False,
         )
 
         if not success or result is None:
@@ -129,9 +141,9 @@ def process_single_file(
             resample_spectrum,
             x_raw,
             y_raw,
-            500,    # TARGET_LEN
+            500,  # TARGET_LEN
             error_context=f"resampling {filename}",
-            show_error=False
+            show_error=False,
         )
 
         if not success or result is None:
@@ -145,20 +157,22 @@ def process_single_file(
             y_resampled,
             model_choice,
             error_context=f"inference on {filename}",
-            show_error=False
+            show_error=False,
         )
 
         if not success or result is None:
             ErrorHandler.log_error(
-                Exception("Inference failed"), f"processing {filename}")
+                Exception("Inference failed"), f"processing {filename}"
+            )
             return None
 
         prediction, logits_list, probs, inference_time, logits = result
 
         # ==Calculate confidence==
         if logits is not None:
-            probs_np, max_confidence, confidence_level, confidence_emoji = calculate_softmax_confidence(
-                logits)
+            probs_np, max_confidence, confidence_level, confidence_emoji = (
+                calculate_softmax_confidence(logits)
+            )
         else:
             probs_np = np.array([])
             max_confidence = 0.0
@@ -202,7 +216,7 @@ def process_single_file(
             "filename": filename,
             "success": False,
             "error": str(e),
-            "processing_time": time.time() - start_time
+            "processing_time": time.time() - start_time,
         }
 
 
@@ -212,7 +226,7 @@ def process_multiple_files(
     load_model_func,
     run_inference_func,
     label_file_func,
-    progress_callback=None
+    progress_callback=None,
 ) -> List[Dict[str, Any]]:
     """
     Process multiple uploaded files
@@ -240,8 +254,7 @@ def process_multiple_files(
         try:
             # ==Read file content==
             raw = uploaded_file.read()
-            text_content = raw.decode(
-                'utf-8') if isinstance(raw, bytes) else raw
+            text_content = raw.decode("utf-8") if isinstance(raw, bytes) else raw
 
             # ==Process the file==
             result = process_single_file(
@@ -250,7 +263,7 @@ def process_multiple_files(
                 model_choice,
                 load_model_func,
                 run_inference_func,
-                label_file_func
+                label_file_func,
             )
 
             if result:
@@ -269,85 +282,117 @@ def process_multiple_files(
                         processing_time=result["processing_time"],
                         metadata={
                             "confidence_level": result["confidence_level"],
-                            "confidence_emoji": result["confidence_emoji"]
-                        }
+                            "confidence_emoji": result["confidence_emoji"],
+                        },
                     )
 
         except Exception as e:
             ErrorHandler.log_error(e, f"reading file {uploaded_file.name}")
-            results.append({
-                "filename": uploaded_file.name,
-                "success": False,
-                "error": f"Failed to read file: {str(e)}"
-            })
+            results.append(
+                {
+                    "filename": uploaded_file.name,
+                    "success": False,
+                    "error": f"Failed to read file: {str(e)}",
+                }
+            )
 
     if progress_callback:
         progress_callback(total_files, total_files, "Complete")
 
     ErrorHandler.log_info(
-        f"Completed batch processing: {sum(1 for r in results if r.get('success', False))}/{total_files} successful")
+        f"Completed batch processing: {sum(1 for r in results if r.get('success', False))}/{total_files} successful"
+    )
 
     return results
 
 
-def display_batch_results(results: List[Dict[str, Any]]) -> None:
-    """
-    Display batch processing results in the UI
-
-    Args:
-        results: List of processing results
-    """
-    if not results:
-        st.warning("No results to display")
+def display_batch_results(batch_results: list):
+    """Renders a clean, consolidated summary of batch processing results using metrics and a pandas DataFrame replacing the old expander list"""
+    if not batch_results:
+        st.info("No batch results to display.")
         return
 
-    successful = [r for r in results if r.get("success", False)]
-    failed = [r for r in results if not r.get("success", False)]
+    successful_runs = [r for r in batch_results if r.get("success", False)]
+    failed_runs = [r for r in batch_results if not r.get("success", False)]
 
-    # ==Summary==
-    col1, col2, col3 = st.columns(3, border=True)
-    with col1:
-        st.metric("Total Files", len(results))
-    with col2:
-        st.metric("Successful", len(successful),
-                  delta=f"{len(successful)/len(results)*100:.1f}%")
-    with col3:
-        st.metric("Failed", len(
-            failed), delta=f"-{len(failed)/len(results)*100:.1f}%" if failed else "0%")
+    # 1. High Level Metrics
+    st.markdown("###### Batch Summary")
+    metric_cols = st.columns(3)
+    metric_cols[0].metric("Total Files Processed", f"{len(batch_results)}")
+    metric_cols[1].metric("✔️ Successful", f"{len(successful_runs)}")
+    metric_cols[2].metric("❌ Failed", f"{len(failed_runs)}")
 
-    # ==Results tabs==
-    tab1, tab2 = st.tabs(["✅Successful", "❌ Failed"], width="stretch")
+    # 3 Hidden Failure Details
+    if failed_runs:
+        with st.expander(
+            f"View details for {len(failed_runs)} failed file(s)", expanded=False
+        ):
+            for r in failed_runs:
+                st.error(f"**File:** `{r.get('filename', 'unknown')}`")
+                st.caption(
+                    f"Reason for failure: {r.get('error', 'No details provided')}"
+                )
 
-    with tab1:
-        with st.expander("Successful"):
-            if successful:
-                for result in successful:
-                    with st.expander(f"{result['filename']}", expanded=False):
-                        col1, col2 = st.columns(2)
-                        with col1:
-                            st.write(
-                                f"**Prediction:** {result['predicted_class']}")
-                            st.write(
-                                f"**Confidence:** {result['confidence_emoji']} {result['confidence_level']} ({result['confidence']:.3f})")
-                        with col2:
-                            st.write(
-                                f"**Processing Time:** {result['processing_time']:.3f}s")
-                            if result['ground_truth'] is not None:
-                                gt_label = {0: "Stable", 1: "Weathered"}.get(
-                                    result['ground_truth'], "Unknown")
-                                correct = "✅" if result['prediction'] == result['ground_truth'] else "❌"
-                                st.write(
-                                    f"**Ground Truth:** {gt_label} {correct}")
-            else:
-                st.info("No successful results")
 
-    with tab2:
-        if failed:
-            for result in failed:
-                with st.expander(f"❌ {result['filename']}", expanded=False):
-                    st.error(f"Error: {result.get('error', 'Unknown error')}")
-        else:
-            st.success("No failed files!")
+# Legacy display batch results
+# def display_batch_results(results: List[Dict[str, Any]]) -> None:
+#     """
+#     Display batch processing results in the UI
+
+#     Args:
+#         results: List of processing results
+#     """
+#     if not results:
+#         st.warning("No results to display")
+#         return
+
+#     successful = [r for r in results if r.get("success", False)]
+#     failed = [r for r in results if not r.get("success", False)]
+
+#     # ==Summary==
+#     col1, col2, col3 = st.columns(3, border=True)
+#     with col1:
+#         st.metric("Total Files", len(results))
+#     with col2:
+#         st.metric("Successful", len(successful),
+#                   delta=f"{len(successful)/len(results)*100:.1f}%")
+#     with col3:
+#         st.metric("Failed", len(
+#             failed), delta=f"-{len(failed)/len(results)*100:.1f}%" if failed else "0%")
+
+#     # ==Results tabs==
+#     tab1, tab2 = st.tabs(["✅Successful", "❌ Failed"], width="stretch")
+
+#     with tab1:
+#         with st.expander("Successful"):
+#             if successful:
+#                 for result in successful:
+#                     with st.expander(f"{result['filename']}", expanded=False):
+#                         col1, col2 = st.columns(2)
+#                         with col1:
+#                             st.write(
+#                                 f"**Prediction:** {result['predicted_class']}")
+#                             st.write(
+#                                 f"**Confidence:** {result['confidence_emoji']} {result['confidence_level']} ({result['confidence']:.3f})")
+#                         with col2:
+#                             st.write(
+#                                 f"**Processing Time:** {result['processing_time']:.3f}s")
+#                             if result['ground_truth'] is not None:
+#                                 gt_label = {0: "Stable", 1: "Weathered"}.get(
+#                                     result['ground_truth'], "Unknown")
+#                                 correct = "✅" if result['prediction'] == result['ground_truth'] else "❌"
+#                                 st.write(
+#                                     f"**Ground Truth:** {gt_label} {correct}")
+#             else:
+#                 st.info("No successful results")
+
+#     with tab2:
+#         if failed:
+#             for result in failed:
+#                 with st.expander(f"❌ {result['filename']}", expanded=False):
+#                     st.error(f"Error: {result.get('error', 'Unknown error')}")
+#         else:
+#             st.success("No failed files!")
 
 
 def create_batch_uploader() -> List:
@@ -362,7 +407,7 @@ def create_batch_uploader() -> List:
         type="txt",
         accept_multiple_files=True,
         help="Select multiple .txt files with wavenumber and intensity columns",
-        key="batch_uploader"
+        key="batch_uploader",
     )
 
     return uploaded_files if uploaded_files else []
