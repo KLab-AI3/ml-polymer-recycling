@@ -391,21 +391,16 @@ def render_input_column():
 
 
 def render_results_column():
-    # Check if we're in batch more or have batch results
+    # Get the current mode and check for batch results
     is_batch_mode = st.session_state.get("batch_mode", False)
     has_batch_results = "batch_results" in st.session_state
 
     if is_batch_mode and has_batch_results:
-        # Display batch results
-        st.markdown("##### Batch Analysis Results")
-        batch_results = st.session_state["batch_results"]
-        display_batch_results(batch_results)
-
+        # THEN render the main interactive dashboard from ResultsManager
         ResultsManager.display_results_table()
 
     elif st.session_state.get("inference_run_once", False) and not is_batch_mode:
         st.markdown("##### Analysis Results")
-
         # Get data from session state
         x_raw = st.session_state.get("x_raw")
         y_raw = st.session_state.get("y_raw")
