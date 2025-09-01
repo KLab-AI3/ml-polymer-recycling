@@ -74,14 +74,15 @@ div[data-testid="stExpander"] summary svg {
 }
 
 div.stExpander>details>summary::after {
-    content: 'DETAILS';
+    content: '↓';
     font-size: 0.75rem;
-    font-weight: 600;
+    font-weight: 900;
     letter-spacing: 0.5px;
     padding: 4px 12px;
     border-radius: 999px;
     /* The primary color is set in config.toml and adapted by Streamlit */
     background-color: var(--primary);
+    color: var(--text-color);
     /* Text on the primary color needs high contrast. White works well for our chosen purple. */
 
     transition: background-color 0.2s ease-in-out;
@@ -149,10 +150,11 @@ div[data-testid="stMetricLabel"] {
 .st-key-json-button,
 .st-key-clearall-button {
     display: block;
-    border: 1px double #1a1a1a2d;
+    border: 1px double #1a1a1a98;
     max-width: 100%;
     border-radius: 8px;
-    background-color: #F0F0ED;
+    background-color: var(--secondary-background-color);
+    color: var(--text-color);
 
 
 }
@@ -163,9 +165,9 @@ div[data-testid="stMetricLabel"] {
     justify-items: center;
     align-self: center;
     align-content: center;
-    border: 1px double #1a1a1a2d;
+    border: 1px double #1a1a1a98;
     border-radius: 8px;
-    background-color: #F0F0ED;
+    background-color: var(--secondary-background-color);
     max-width: 100%;
 
 }
