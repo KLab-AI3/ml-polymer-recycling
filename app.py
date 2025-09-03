@@ -1,4 +1,4 @@
-"""Streamlit main entrance; modularized for clarity"""
+# In App.py
 
 import streamlit as st
 
@@ -18,7 +18,7 @@ st.set_page_config(
     page_icon="🔬",
     layout="wide",
     initial_sidebar_state="expanded",
-    menu_items={"Get help": "https://github.com/KLab-AI3/ml-polymer-recycling"},
+    menu_items=None,
 )
 
 
