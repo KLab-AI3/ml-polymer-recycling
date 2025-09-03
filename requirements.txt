@@ -7,8 +7,13 @@ pydantic
 scikit-learn
 seaborn
 scipy
+shap
 streamlit
 torch
 torchvision
 uvicorn
 matplotlib
+xgboost
+requests
+Pillow
+plotly
