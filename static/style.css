@@ -153,8 +153,7 @@ div[data-testid="stMetricLabel"] {
     border: 1px double #1a1a1a98;
     max-width: 100%;
     border-radius: 8px;
-    background-color: var(--secondary-background-color);
-    color: var(--text-color);
+
 
 
 }
