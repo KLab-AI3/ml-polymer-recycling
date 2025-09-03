@@ -120,7 +120,7 @@ class FeatureImportanceAnalyzer:
                 # Initialize SHAP explainer for the model
                 if SHAP_AVAILABLE:
                     if SHAP_AVAILABLE:
-                        self.shap_explainer = shap.DeepExplainer(
+                        self.shap_explainer = shap.DeepExplainer(  # type: ignore
                             model, torch.zeros(1, 500)
                         )
                     else:
@@ -241,7 +241,7 @@ class HypothesisGenerator:
         ]
 
     def generate_hypotheses(
-        self, explanation: PredictionExplanation, spectral_data: Dict[str, Any]
+        self, explanation: PredictionExplanation
     ) -> List[Hypothesis]:
         """Generate testable hypotheses based on model predictions and explanations"""
         hypotheses = []
@@ -420,7 +420,7 @@ class TransparentAIEngine:
         self, explanation: PredictionExplanation
     ) -> List[Hypothesis]:
         """Generate scientific hypotheses based on prediction explanation"""
-        return self.hypothesis_generator.generate_hypotheses(explanation, {})
+        return self.hypothesis_generator.generate_hypotheses(explanation)
 
     def _generate_reasoning_chain(
         self,
