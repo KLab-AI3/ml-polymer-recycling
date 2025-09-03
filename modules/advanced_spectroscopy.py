@@ -2,7 +2,7 @@
 Support dual FTIR + Raman spectroscopy with ATR-FTIR integration"""
 
 import numpy as np
-from scipy.integrate import trapz
+from scipy.integrate import trapezoid as trapz
 from typing import Dict, List, Tuple, Optional, Any
 from dataclasses import dataclass
 from scipy import signal

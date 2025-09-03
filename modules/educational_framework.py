@@ -557,7 +557,7 @@ class EducationalFramework:
             "score": score,
             "feedback": feedback,
             "level": self.current_user.current_level,
-            "recommendations": self._get_learning_recommendations(),
+            "recommendations": self.get_learning_recommendations(),
         }
 
     def get_personalized_learning_path(
@@ -599,7 +599,7 @@ class EducationalFramework:
 
         return result
 
-    def _get_learning_recommendations(self) -> List[str]:
+    def get_learning_recommendations(self) -> List[str]:
         """Get learning recommendations based on current progress"""
         recommendations = []
 
