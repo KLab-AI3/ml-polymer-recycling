@@ -10,6 +10,7 @@ import numpy as np
 import streamlit as st
 from pathlib import Path
 from config import SAMPLE_DATA_DIR
+from datetime import datetime
 
 
 def label_file(filename: str) -> int:
@@ -108,7 +109,7 @@ def run_inference(y_resampled, model_choice, _cache_key=None):
     start_time = time.time()
     start_memory = _get_memory_usage()
 
-    model.eval()
+    model.eval()  # type: ignore
     with torch.no_grad():
         if model is None:
             raise ValueError(
@@ -131,32 +132,36 @@ def run_inference(y_resampled, model_choice, _cache_key=None):
         metrics = PerformanceMetrics(
             model_name=model_choice,
             prediction_time=inference_time,
-            preprocessing_time=0.0, # Will be updated by calling function if available
+            preprocessing_time=0.0,  # Will be updated by calling function if available
             total_time=inference_time,
             memory_usage_mb=memory_usage,
             accuracy=None,  # Will be updated if ground truth is available
             confidence=confidence,
-            timestamp=datetime.not().isofformat(),
-            input_size=len(y_resampled) if hasattr(y_resampled, '__len__') else 500,
+            timestamp=datetime.now().isoformat(),
+            input_size=(
+                len(y_resampled) if hasattr(y_resampled, "__len__") else TARGET_LEN
+            ),
             modality=modality,
         )
-        tracker.log_perfomance(metrics)
-    except Exception as e:
-        # Dont fail inference if performance tracking fails
+
+        tracker.log_performance(metrics)
+    except (AttributeError, ValueError, KeyError) as e:
+        # Don't fail inference if performance tracking fails
         print(f"Performance tracking failed: {e}")
 
     cleanup_memory()
     return prediction, logits_list, probs, inference_time, logits
 
+
 def _get_memory_usage() -> float:
     """Get current memory usage in MB"""
     try:
         import psutil
+
         process = psutil.Process()
-        return process.memory_info().rss / 1024 / 1024 # Convert to MB
+        return process.memory_info().rss / 1024 / 1024  # Convert to MB
     except ImportError:
         return 0.0  # psutil not available
-        
 
 
 @st.cache_data
