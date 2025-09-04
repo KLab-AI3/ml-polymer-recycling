@@ -89,15 +89,25 @@ def cleanup_memory():
 
 @st.cache_data
 def run_inference(y_resampled, model_choice, _cache_key=None):
-    """Run model inference and cache results"""
+    """Run model inference and cache results with performance tracking"""
+    from utils.performance_tracker import get_performance_tracker, PerformanceMetrics
+    from datetime import datetime
+
     model, model_loaded = load_model(model_choice)
     if not model_loaded:
         return None, None, None, None, None
 
+    # Performance tracking setup
+    tracker = get_performance_tracker()
+
     input_tensor = (
         torch.tensor(y_resampled, dtype=torch.float32).unsqueeze(0).unsqueeze(0)
     )
+
+    # Track inference performance
     start_time = time.time()
+    start_memory = _get_memory_usage()
+
     model.eval()
     with torch.no_grad():
         if model is None:
@@ -108,9 +118,45 @@ def run_inference(y_resampled, model_choice, _cache_key=None):
         prediction = torch.argmax(logits, dim=1).item()
         logits_list = logits.detach().numpy().tolist()[0]
         probs = F.softmax(logits.detach(), dim=1).cpu().numpy().flatten()
+
     inference_time = time.time() - start_time
+    end_memory = _get_memory_usage()
+    memory_usage = max(end_memory - start_memory, 0)
+
+    # Log performance metrics
+    try:
+        modality = st.session_state.get("modality_select", "raman")
+        confidence = float(max(probs)) if probs is not None and len(probs) > 0 else 0.0
+
+        metrics = PerformanceMetrics(
+            model_name=model_choice,
+            prediction_time=inference_time,
+            preprocessing_time=0.0, # Will be updated by calling function if available
+            total_time=inference_time,
+            memory_usage_mb=memory_usage,
+            accuracy=None,  # Will be updated if ground truth is available
+            confidence=confidence,
+            timestamp=datetime.not().isofformat(),
+            input_size=len(y_resampled) if hasattr(y_resampled, '__len__') else 500,
+            modality=modality,
+        )
+        tracker.log_perfomance(metrics)
+    except Exception as e:
+        # Dont fail inference if performance tracking fails
+        print(f"Performance tracking failed: {e}")
+
     cleanup_memory()
     return prediction, logits_list, probs, inference_time, logits
+
+def _get_memory_usage() -> float:
+    """Get current memory usage in MB"""
+    try:
+        import psutil
+        process = psutil.Process()
+        return process.memory_info().rss / 1024 / 1024 # Convert to MB
+    except ImportError:
+        return 0.0  # psutil not available
+        
 
 
 @st.cache_data
