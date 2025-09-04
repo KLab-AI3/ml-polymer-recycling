@@ -2,48 +2,153 @@
 
 ## Executive Summary
 
-This audit provides a complete technical inventory of the `dev-jas/polymer-aging-ml` repository, a sophisticated machine learning platform for polymer degradation classification using Raman spectroscopy. The system demonstrates production-ready architecture with comprehensive error handling, batch processing capabilities, and an extensible model framework spanning **34 files across 7 directories**.[^1_1][^1_2]
+This audit provides a complete technical inventory of the `dev-jas/polymer-aging-ml` repository, a sophisticated machine learning platform for polymer degradation classification using **Raman and FTIR spectroscopy**. The system demonstrates a production-ready, multi-modal architecture with comprehensive error handling, multi-format batch processing, persistent performance tracking, and an extensible model framework spanning over **40 files across 8 directories**.
 
 ## 🏗️ System Architecture
 
 ### Core Infrastructure
 
-The platform employs a **Streamlit-based web application** (`app.py` - 53.7 kB) as its primary interface, supported by a modular backend architecture. The system integrates **PyTorch for deep learning**, **Docker for deployment**, and implements a plugin-based model registry for extensibility.[^1_2][^1_3][^1_4]
+The platform employs a **Streamlit-based web application** (`app.py`) as its primary interface, supported by a modular backend architecture. The system integrates **PyTorch for deep learning**, **Docker for deployment**, and implements a plugin-based model registry for extensibility. A **SQLite database** (`outputs/performance_tracking.db`) provides persistent storage for performance metrics.
 
 ### Directory Structure Analysis
 
-The codebase maintains clean separation of concerns across seven primary directories:[^1_1]
+The codebase maintains clean separation of concerns across eight primary directories:
 
 **Root Level Files:**
 
-- `app.py` (53.7 kB) - Main Streamlit application with two-column UI layout
-- `README.md` (4.8 kB) - Comprehensive project documentation
-- `Dockerfile` (421 Bytes) - Python 3.13-slim containerization
-- `requirements.txt` (132 Bytes) - Dependency management without version pinning
+- `app.py` - Main Streamlit application with a multi-tab UI layout
+- `README.md` - Comprehensive project documentation
+- `Dockerfile` - Python 3.13-slim containerization
+- `requirements.txt` - Dependency management
 
 **Core Directories:**
 
-- `models/` - Neural network architectures with registry pattern
-- `utils/` - Shared utility modules (43.2 kB total)
-- `scripts/` - CLI tools and automation workflows
-- `outputs/` - Pre-trained model weights storage
-- `sample_data/` - Demo spectrum files for testing
+- `models/` - Neural network architectures with an expanded registry pattern
+- `utils/` - Shared utility modules, including:
+  - `preprocessing.py`: Modality-aware (Raman/FTIR) preprocessing.
+  - `multifile.py`: Multi-format (TXT, CSV, JSON) data parsing and batch processing.
+  - `results_manager.py`: Session and persistent results management.
+  - `performance_tracker.py`: Performance analytics and database logging.
+- `scripts/` - CLI tools for training, inference, and data management
+- `outputs/` - Storage for pre-trained model weights, inference results, and the performance database
+- `sample_data/` - Demo spectrum files for testing (including FTIR)
 - `tests/` - Unit testing infrastructure
 - `datasets/` - Data storage directory (content ignored)
+- `pages/` - Streamlit pages for dashboarding and other UI components
 
 ## 🤖 Machine Learning Framework
 
 ### Model Registry System
 
-The platform implements a **sophisticated factory pattern** for model management in `models/registry.py`. This design enables dynamic model selection and provides a unified interface for different architectures:[^1_5]
+The platform implements a **sophisticated factory pattern** for model management in `models/registry.py`. This design enables dynamic model selection and provides a unified interface for different architectures, now with added metadata for better model management.
 
 ```python
+# Example from models/registry.py
 _REGISTRY: Dict[str, Callable[[int], object]] = {
     "figure2": lambda L: Figure2CNN(input_length=L),
     "resnet": lambda L: ResNet1D(input_length=L),
     "resnet18vision": lambda L: ResNet18Vision(input_length=L)
 }
 ```
+
+### Neural Network Architectures
+
+The platform includes several neural network architectures, including a baseline CNN, a ResNet-based model, and an experimental ResNet-18 vision model adapted for 1D spectral data.
+
+## 🔧 Data Processing Infrastructure
+
+### Preprocessing Pipeline
+
+The system implements a **modular and modality-aware preprocessing pipeline** in `utils/preprocessing.py`.
+
+**1. Multi-Format Input Validation Framework:**
+
+- **File Format Verification**: Supports `.txt`, `.csv`, and `.json` files with auto-detection.
+- **Data Integrity**: Validates for minimum data points, monotonic wavenumbers, and NaN values.
+- **Modality-Aware Validation**: Applies different wavenumber range checks for Raman and FTIR spectroscopy.
+
+**2. Core Processing Steps:**
+
+- **Linear Resampling**: Uniform grid interpolation to a standard length (e.g., 500 points).
+- **Baseline Correction**: Polynomial detrending.
+- **Savitzky-Golay Smoothing**: Noise reduction with modality-specific parameters.
+- **Min-Max Normalization**: Scaling to a [0, 1] range.
+
+### Batch Processing Framework
+
+The `utils/multifile.py` module provides **enterprise-grade batch processing** with multi-format support, error-tolerant processing, and progress tracking.
+
+## 🖥️ User Interface Architecture
+
+### Streamlit Application Design
+
+The main application (`App.py`) implements a **multi-tab user interface** for different analysis modes:
+
+- **Standard Analysis Tab**: For single-file or batch processing with a chosen model.
+- **Model Comparison Tab**: Allows for side-by-side comparison of multiple models on the same data.
+- **Performance Tracking Tab**: A dashboard to visualize and analyze model performance metrics from the SQLite database.
+
+### State Management System
+
+The application employs **advanced session state management** (`st.session_state`) to maintain a consistent user experience across tabs and reruns, with intelligent caching for performance.
+
+## 🛠️ Utility Infrastructure
+
+### Centralized Error Handling
+
+The `utils/errors.py` module implements **production-grade error management** with context-aware logging and user-friendly error messages.
+
+### Performance Tracking System
+
+The `utils/performance_tracker.py` module provides a robust system for logging and analyzing performance metrics.
+
+- **Database Logging**: Persists metrics to a SQLite database.
+- **Automated Tracking**: Uses a context manager to automatically track inference time, preprocessing time, and memory usage.
+- **Dashboarding**: Includes functions to generate performance visualizations and summary statistics for the UI.
+
+### Enhanced Results Management
+
+The `utils/results_manager.py` module enables comprehensive session and persistent results tracking.
+
+- **In-Memory Storage**: Manages results for the current session.
+- **Multi-Model Handling**: Aggregates results from multiple models for comparison.
+- **Export Capabilities**: Exports results to CSV and JSON.
+- **Statistical Analysis**: Calculates accuracy, confidence, and other metrics.
+
+## 📜 Command-Line Interface
+
+### Inference Pipeline
+
+The `scripts/run_inference.py` module provides **powerful automated inference capabilities**:
+
+- **Multi-Model Inference**: Run multiple models on the same input for comparison.
+- **Format Detection**: Automatically detects input file format (TXT, CSV, JSON).
+- **Modality Support**: Explicitly supports both Raman and FTIR modalities.
+- **Flexible Output**: Saves results in JSON or CSV format.
+
+## 🧪 Testing Framework
+
+### Test Infrastructure
+
+The `tests/` directory contains the testing framework, now with expanded coverage:
+
+- **PyTest Configuration**: Centralized test settings in `conftest.py`.
+- **Preprocessing Tests**: Includes tests for both Raman and FTIR preprocessing.
+- **Multi-Format Parsing Tests**: Validates the parsing of TXT, CSV, and JSON files.
+
+## 🔮 Strategic Development Roadmap
+
+The project roadmap has been updated to reflect recent progress:
+
+- [x] **FTIR Support**: Modular integration of FTIR spectroscopy is complete.
+- [x] **Multi-Model Dashboard**: A model comparison tab has been implemented.
+- [ ] **Image-based Inference**: Future work to include image-based polymer classification.
+- [x] **Performance Tracking**: A performance tracking dashboard has been implemented.
+- [ ] **Enterprise Integration**: Future work to include a RESTful API and more advanced database integration.
+
+## 🏁 Audit Conclusion
+
+This codebase represents a **significantly enhanced, multi-modal machine learning platform** that is well-suited for research, education, and industrial applications. The recent additions of FTIR support, multi-format data handling, performance tracking, and a multi-tab UI have greatly increased the usability and value of the project. The architecture remains robust, extensible, and well-documented, making it a solid foundation for future development.
 
 ### Neural Network Architectures
 
