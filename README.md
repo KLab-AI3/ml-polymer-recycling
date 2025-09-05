@@ -4,7 +4,7 @@ emoji: 🔬
 colorFrom: indigo
 colorTo: yellow
 sdk: streamlit
-app_file: app.py
+app_file: App.py
 pinned: false
 license: apache-2.0
 ---
