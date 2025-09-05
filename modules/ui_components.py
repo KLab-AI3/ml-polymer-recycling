@@ -13,9 +13,9 @@ from modules.callbacks import (
     on_model_change,
     on_input_mode_change,
     on_sample_change,
+    reset_results,
     reset_ephemeral_state,
     log_message,
-    clear_batch_results,
 )
 from core_logic import (
     get_sample_files,
@@ -24,7 +24,6 @@ from core_logic import (
     parse_spectrum_data,
     label_file,
 )
-from modules.callbacks import reset_results
 from utils.results_manager import ResultsManager
 from utils.confidence import calculate_softmax_confidence
 from utils.multifile import process_multiple_files, display_batch_results
@@ -41,7 +40,7 @@ def create_spectrum_plot(x_raw, y_raw, x_resampled, y_resampled, _cache_key=None
     """Create spectrum visualization plot"""
     fig, ax = plt.subplots(1, 2, figsize=(13, 5), dpi=100)
 
-    # == Raw spectrum ==
+    # Raw spectrum
     ax[0].plot(x_raw, y_raw, label="Raw", color="dimgray", linewidth=1)
     ax[0].set_title("Raw Input Spectrum")
     ax[0].set_xlabel("Wavenumber (cm⁻¹)")
@@ -49,7 +48,7 @@ def create_spectrum_plot(x_raw, y_raw, x_resampled, y_resampled, _cache_key=None
     ax[0].grid(True, alpha=0.3)
     ax[0].legend()
 
-    # == Resampled spectrum ==
+    # Resampled spectrum
     ax[1].plot(
         x_resampled, y_resampled, label="Resampled", color="steelblue", linewidth=1
     )
@@ -60,13 +59,16 @@ def create_spectrum_plot(x_raw, y_raw, x_resampled, y_resampled, _cache_key=None
     ax[1].legend()
 
     fig.tight_layout()
-    # == Convert to image ==
+    # Convert to image
     buf = io.BytesIO()
     plt.savefig(buf, format="png", bbox_inches="tight", dpi=100)
     buf.seek(0)
     plt.close(fig)  # Prevent memory leaks
 
     return Image.open(buf)
+
+
+# //////////////////////////////////////////
 
 
 def render_confidence_progress(
@@ -114,7 +116,10 @@ def render_confidence_progress(
                     st.markdown("")
 
 
-def render_kv_grid(d: dict = {}, ncols: int = 2):
+from typing import Optional
+
+
+def render_kv_grid(d: Optional[dict] = None, ncols: int = 2):
     if d is None:
         d = {}
     if not d:
@@ -124,6 +129,9 @@ def render_kv_grid(d: dict = {}, ncols: int = 2):
     for i, (k, v) in enumerate(items):
         with cols[i % ncols]:
             st.caption(f"**{k}:** {v}")
+
+
+# //////////////////////////////////////////
 
 
 def render_model_meta(model_choice: str):
@@ -143,6 +151,9 @@ def render_model_meta(model_choice: str):
         st.caption(desc)
 
 
+# //////////////////////////////////////////
+
+
 def get_confidence_description(logit_margin):
     """Get human-readable confidence description"""
     if logit_margin > 1000:
@@ -155,13 +166,35 @@ def get_confidence_description(logit_margin):
         return "LOW", "🔴"
 
 
+# //////////////////////////////////////////
+
+
 def render_sidebar():
     with st.sidebar:
         # Header
         st.header("AI-Driven Polymer Classification")
         st.caption(
-            "Predict polymer degradation (Stable vs Weathered) from Raman spectra using validated CNN models. — v0.1"
+            "Predict polymer degradation (Stable vs Weathered) from Raman/FTIR spectra using validated CNN models. — v0.01"
         )
+
+        # Modality Selection
+        st.markdown("##### Spectroscopy Modality")
+        modality = st.selectbox(
+            "Choose Modality",
+            ["raman", "ftir"],
+            index=0,
+            key="modality_select",
+            format_func=lambda x: f"{'Raman' if x == 'raman' else 'FTIR'}",
+        )
+
+        # Display modality info
+        if modality == "ftir":
+            st.info("FTIR mode: 400-4000 cm-1 range with atmospheric correction")
+        else:
+            st.info("Raman mode: 200-4000 cm-1 range with standard preprocessing")
+
+        # Model selection
+        st.markdown("##### AI Model Selection")
         model_labels = [
             f"{MODEL_CONFIG[name]['emoji']} {name}" for name in MODEL_CONFIG.keys()
         ]
@@ -173,10 +206,10 @@ def render_sidebar():
         )
         model_choice = selected_label.split(" ", 1)[1]
 
-        # ===Compact metadata directly under dropdown===
+        # Compact metadata directly under dropdown
         render_model_meta(model_choice)
 
-        # ===Collapsed info to reduce clutter===
+        # Collapsed info to reduce clutter
         with st.expander("About This App", icon=":material/info:", expanded=False):
             st.markdown(
                 """
@@ -184,8 +217,9 @@ def render_sidebar():
 
             **Purpose**: Classify polymer degradation using AI<br>
             **Input**: Raman spectroscopy .txt files<br>
-            **Models**: CNN architectures for binary classification<br>
-            **Next**: More trained CNNs in evaluation pipeline<br>
+            **Models**: CNN architectures for classification<br>
+            **Modalities**: Raman and FTIR spectroscopy support<br>
+            **Features**: Multi-model comparison and analysis<br>
 
 
             **Contributors**<br>
@@ -207,11 +241,7 @@ def render_sidebar():
             )
 
 
-# col1 goes here
-
-# In modules/ui_components.py
-
-
+# //////////////////////////////////////////
 def render_input_column():
     st.markdown("##### Data Input")
 
@@ -224,22 +254,20 @@ def render_input_column():
     )
 
     # == Input Mode Logic ==
-    # ... (The if/elif/else block for Upload, Batch, and Sample modes remains exactly the same) ...
-    # ==Upload tab==
     if mode == "Upload File":
         upload_key = st.session_state["current_upload_key"]
         up = st.file_uploader(
-            "Upload Raman spectrum (.txt)",
-            type="txt",
-            help="Upload a text file with wavenumber and intensity columns",
+            "Upload spectrum file (.txt, .csv, .json)",
+            type=["txt", "csv", "json"],
+            help="Upload spectroscopy data: TXT (2-column), CSV (with headers), or JSON format",
             key=upload_key,  # ← versioned key
         )
 
-        # ==Process change immediately (no on_change; simpler & reliable)==
+        # Process change immediately
         if up is not None:
             raw = up.read()
             text = raw.decode("utf-8") if isinstance(raw, bytes) else raw
-            # == only reparse if its a different file|source ==
+            # only reparse if its a different file|source
             if (
                 st.session_state.get("filename") != getattr(up, "name", None)
                 or st.session_state.get("input_source") != "upload"
@@ -255,23 +283,20 @@ def render_input_column():
                 st.session_state["status_type"] = "success"
                 reset_results("New file uploaded")
 
-    # ==Batch Upload tab==
+    # Batch Upload tab
     elif mode == "Batch Upload":
         st.session_state["batch_mode"] = True
-        # --- START: BUG 1 & 3 FIX ---
         # Use a versioned key to ensure the file uploader resets properly.
         batch_upload_key = f"batch_upload_{st.session_state['uploader_version']}"
         uploaded_files = st.file_uploader(
-            "Upload multiple Raman spectrum files (.txt)",
-            type="txt",
+            "Upload multiple spectrum files (.txt, .csv, .json)",
+            type=["txt", "csv", "json"],
             accept_multiple_files=True,
-            help="Upload one or more text files with wavenumber and intensity columns.",
+            help="Upload spectroscopy files in TXT, CSV, or JSON format.",
             key=batch_upload_key,
         )
-        # --- END: BUG 1 & 3 FIX ---
 
         if uploaded_files:
-            # --- START: Bug 1 Fix ---
             # Use a dictionary to keep only unique files based on name and size
             unique_files = {(file.name, file.size): file for file in uploaded_files}
             unique_file_list = list(unique_files.values())
@@ -281,9 +306,7 @@ def render_input_column():
 
             # Optionally, inform the user that duplicates were removed
             if num_uploaded > num_unique:
-                st.info(
-                    f"ℹ️ {num_uploaded - num_unique} duplicate file(s) were removed."
-                )
+                st.info(f"{num_uploaded - num_unique} duplicate file(s) were removed.")
 
             # Use the unique list
             st.session_state["batch_files"] = unique_file_list
@@ -291,7 +314,6 @@ def render_input_column():
                 f"{num_unique} ready for batch analysis"
             )
             st.session_state["status_type"] = "success"
-            # --- END: Bug 1 Fix ---
         else:
             st.session_state["batch_files"] = []
             # This check prevents resetting the status if files are already staged
@@ -301,7 +323,7 @@ def render_input_column():
                 )
                 st.session_state["status_type"] = "info"
 
-    # ==Sample tab==
+    # Sample tab
     elif mode == "Sample Data":
         st.session_state["batch_mode"] = False
         sample_files = get_sample_files()
@@ -329,9 +351,6 @@ def render_input_column():
         st.error(msg)
     else:
         st.info(msg)
-
-    # --- DE-NESTED LOGIC STARTS HERE ---
-    # This code now runs on EVERY execution, guaranteeing the buttons will appear.
 
     # Safely get model choice from session state
     model_choice = st.session_state.get("model_select", " ").split(" ", 1)[1]
@@ -388,7 +407,7 @@ def render_input_column():
                 st.error(f"Error processing spectrum data: {e}")
 
 
-# col2 goes here
+# //////////////////////////////////////////
 
 
 def render_results_column():
@@ -410,7 +429,7 @@ def render_results_column():
         filename = st.session_state.get("filename", "Unknown")
 
         if all(v is not None for v in [x_raw, y_raw, y_resampled]):
-            # ===Run inference===
+            # Run inference
             if y_resampled is None:
                 raise ValueError(
                     "y_resampled is None. Ensure spectrum data is properly resampled before proceeding."
@@ -437,14 +456,14 @@ def render_results_column():
                 f"Inference completed in {inference_time:.2f}s, prediction: {prediction}"
             )
 
-            # ===Get ground truth===
+            # Get ground truth
             true_label_idx = label_file(filename)
             true_label_str = (
                 LABEL_MAP.get(true_label_idx, "Unknown")
                 if true_label_idx is not None
                 else "Unknown"
             )
-            # ===Get prediction===
+            # Get prediction
             predicted_class = LABEL_MAP.get(int(prediction), f"Class {int(prediction)}")
 
             # Enhanced confidence calculation
@@ -455,7 +474,7 @@ def render_results_column():
                 )
                 confidence_desc = confidence_level
             else:
-                # Fallback to legace method
+                # Fallback to legacy method
                 logit_margin = abs(
                     (logits_list[0] - logits_list[1])
                     if logits_list is not None and len(logits_list) >= 2
@@ -487,7 +506,7 @@ def render_results_column():
                 },
             )
 
-            # ===Precompute Stats===
+            # Precompute Stats
             model_choice = (
                 st.session_state.get("model_select", "").split(" ", 1)[1]
                 if "model_select" in st.session_state
@@ -505,7 +524,6 @@ def render_results_column():
                 if os.path.exists(model_path)
                 else "N/A"
             )
-            # Removed unused variable 'input_tensor'
 
             start_render = time.time()
 
@@ -590,17 +608,13 @@ def render_results_column():
                     """,
                         unsafe_allow_html=True,
                     )
-                    # --- END: CONSOLIDATED CONFIDENCE ANALYSIS ---
 
                     st.divider()
 
-                    # --- START: CLEAN METADATA FOOTER ---
-                    # Secondary info is now a clean, single-line caption
+                    # METADATA FOOTER
                     st.caption(
                         f"Analyzed with **{st.session_state.get('model_select', 'Unknown')}** in **{inference_time:.2f}s**."
                     )
-                    # --- END: CLEAN METADATA FOOTER ---
-
                 st.markdown("</div>", unsafe_allow_html=True)
 
             elif active_tab == "Technical":
@@ -918,7 +932,7 @@ def render_results_column():
             """
             )
     else:
-        # ===Getting Started===
+        # Getting Started
         st.markdown(
             """
         ##### How to Get Started
@@ -948,3 +962,416 @@ def render_results_column():
         - 🏭 Quality control in manufacturing
         """
         )
+
+
+# //////////////////////////////////////////
+
+
+def render_comparison_tab():
+    """Render the multi-model comparison interface"""
+    import streamlit as st
+    import matplotlib.pyplot as plt
+    from models.registry import choices, validate_model_list
+    from utils.results_manager import ResultsManager
+    from core_logic import get_sample_files, run_inference, parse_spectrum_data
+    from utils.preprocessing import preprocess_spectrum
+    from utils.multifile import parse_spectrum_data
+    import numpy as np
+    import time
+
+    st.markdown("### Multi-Model Comparison Analysis")
+    st.markdown(
+        "Compare predictions across different AI models for comprehensive analysis."
+    )
+
+    # Model selection for comparison
+    st.markdown("##### Select Models for Comparison")
+
+    available_models = choices()
+    selected_models = st.multiselect(
+        "Choose models to compare",
+        available_models,
+        default=(
+            available_models[:2] if len(available_models) >= 2 else available_models
+        ),
+        help="Select 2 or more models to compare their predictions side-by-side",
+    )
+
+    if len(selected_models) < 2:
+        st.warning("⚠️ Please select at least 2 models for comparison.")
+
+    # Input selection for comparison
+    col1, col2 = st.columns([1, 1.5])
+
+    with col1:
+        st.markdown("###### Input Data")
+
+        # File upload for comparison
+        comparison_file = st.file_uploader(
+            "Upload spectrum for comparison",
+            type=["txt", "csv", "json"],
+            key="comparison_file_upload",
+            help="Upload a spectrum file to test across all selected models",
+        )
+
+        # Or select sample data
+        selected_sample = None  # Initialize with a default value
+        sample_files = get_sample_files()
+        if sample_files:
+            sample_options = ["-- Select Sample --"] + [p.name for p in sample_files]
+            selected_sample = st.selectbox(
+                "Or choose sample data", sample_options, key="comparison_sample_select"
+            )
+
+        # Get modality from session state
+        modality = st.session_state.get("modality_select", "raman")
+        st.info(f"Using {modality.upper()} preprocessing parameters")
+
+        # Run comparison button
+        run_comparison = st.button(
+            "Run Multi-Model Comparison",
+            type="primary",
+            disabled=not (
+                comparison_file
+                or (sample_files and selected_sample != "-- Select Sample --")
+            ),
+        )
+
+    with col2:
+        st.markdown("###### Comparison Results")
+
+        if run_comparison:
+            # Determine input source
+            input_text = None
+            filename = "unknown"
+
+            if comparison_file:
+                raw = comparison_file.read()
+                input_text = raw.decode("utf-8") if isinstance(raw, bytes) else raw
+                filename = comparison_file.name
+            elif sample_files and selected_sample != "-- Select Sample --":
+                sample_path = next(p for p in sample_files if p.name == selected_sample)
+                with open(sample_path, "r") as f:
+                    input_text = f.read()
+                filename = selected_sample
+
+            if input_text:
+                try:
+                    # Parse spectrum data
+                    x_raw, y_raw = parse_spectrum_data(
+                        str(input_text), filename or "unknown_filename"
+                    )
+
+                    # Store results
+                    comparison_results = {}
+                    processing_times = {}
+
+                    progress_bar = st.progress(0)
+                    status_text = st.empty()
+
+                    for i, model_name in enumerate(selected_models):
+                        status_text.text(f"Running inference with {model_name}...")
+
+                        start_time = time.time()
+
+                        # Preprocess spectrum with modality-specific parameters
+                        _, y_processed = preprocess_spectrum(
+                            x_raw, y_raw, modality=modality, target_len=500
+                        )
+
+                        # Run inference
+                        prediction, logits_list, probs, inference_time, logits = (
+                            run_inference(y_processed, model_name)
+                        )
+
+                        processing_time = time.time() - start_time
+
+                        if prediction is not None:
+                            # Map prediction to class name
+                            class_names = ["Stable", "Weathered"]
+                            predicted_class = (
+                                class_names[int(prediction)]
+                                if prediction < len(class_names)
+                                else f"Class_{prediction}"
+                            )
+                            confidence = (
+                                max(probs)
+                                if probs is not None and len(probs) > 0
+                                else 0.0
+                            )
+
+                            comparison_results[model_name] = {
+                                "prediction": prediction,
+                                "predicted_class": predicted_class,
+                                "confidence": confidence,
+                                "probs": probs if probs is not None else [],
+                                "logits": (
+                                    logits_list if logits_list is not None else []
+                                ),
+                                "processing_time": processing_time,
+                            }
+                            processing_times[model_name] = processing_time
+
+                        progress_bar.progress((i + 1) / len(selected_models))
+
+                    status_text.text("Comparison complete!")
+
+                    # Display results
+                    if comparison_results:
+                        st.markdown("###### Model Predictions")
+
+                        # Create comparison table
+                        import pandas as pd
+
+                        table_data = []
+                        for model_name, result in comparison_results.items():
+                            row = {
+                                "Model": model_name,
+                                "Prediction": result["predicted_class"],
+                                "Confidence": f"{result['confidence']:.3f}",
+                                "Processing Time (s)": f"{result['processing_time']:.3f}",
+                            }
+                            table_data.append(row)
+
+                        df = pd.DataFrame(table_data)
+                        st.dataframe(df, use_container_width=True)
+
+                        # Show confidence comparison
+                        st.markdown("##### Confidence Comparison")
+                        conf_col1, conf_col2 = st.columns(2)
+
+                        with conf_col1:
+                            # Bar chart of confidences
+                            models = list(comparison_results.keys())
+                            confidences = [
+                                comparison_results[m]["confidence"] for m in models
+                            ]
+
+                            fig, ax = plt.subplots(figsize=(8, 5))
+                            bars = ax.bar(
+                                models,
+                                confidences,
+                                alpha=0.7,
+                                color=["steelblue", "orange", "green", "red"][
+                                    : len(models)
+                                ],
+                            )
+                            ax.set_ylabel("Confidence")
+                            ax.set_title("Model Confidence Comparison")
+                            ax.set_ylim(0, 1)
+                            plt.xticks(rotation=45)
+
+                            # Add value labels on bars
+                            for bar, conf in zip(bars, confidences):
+                                height = bar.get_height()
+                                ax.text(
+                                    bar.get_x() + bar.get_width() / 2.0,
+                                    height + 0.01,
+                                    f"{conf:.3f}",
+                                    ha="center",
+                                    va="bottom",
+                                )
+
+                            plt.tight_layout()
+                            st.pyplot(fig)
+
+                        with conf_col2:
+                            # Agreement analysis
+                            predictions = [
+                                comparison_results[m]["prediction"] for m in models
+                            ]
+                            unique_predictions = set(predictions)
+
+                            if len(unique_predictions) == 1:
+                                st.success("✅ All models agree on the prediction!")
+                            else:
+                                st.warning("⚠️ Models disagree on the prediction")
+
+                                # Show prediction distribution
+                                from collections import Counter
+
+                                pred_counts = Counter(predictions)
+
+                                st.markdown("**Prediction Distribution:**")
+                                for pred, count in pred_counts.items():
+                                    class_name = (
+                                        ["Stable", "Weathered"][pred]
+                                        if pred < 2
+                                        else f"Class_{pred}"
+                                    )
+                                    percentage = (count / len(predictions)) * 100
+                                    st.write(
+                                        f"- {class_name}: {count}/{len(predictions)} models ({percentage:.1f}%)"
+                                    )
+
+                        # Performance metrics
+                        st.markdown("##### Performance Metrics")
+                        perf_col1, perf_col2 = st.columns(2)
+
+                        with perf_col1:
+                            avg_time = np.mean(list(processing_times.values()))
+                            fastest_model = min(
+                                processing_times.keys(),
+                                key=lambda k: processing_times[k],
+                            )
+                            slowest_model = max(
+                                processing_times.keys(),
+                                key=lambda k: processing_times[k],
+                            )
+
+                            st.metric("Average Processing Time", f"{avg_time:.3f}s")
+                            st.metric(
+                                "Fastest Model",
+                                f"{fastest_model}",
+                                f"{processing_times[fastest_model]:.3f}s",
+                            )
+                            st.metric(
+                                "Slowest Model",
+                                f"{slowest_model}",
+                                f"{processing_times[slowest_model]:.3f}s",
+                            )
+
+                        with perf_col2:
+                            most_confident = max(
+                                comparison_results.keys(),
+                                key=lambda k: comparison_results[k]["confidence"],
+                            )
+                            least_confident = min(
+                                comparison_results.keys(),
+                                key=lambda k: comparison_results[k]["confidence"],
+                            )
+
+                            st.metric(
+                                "Most Confident",
+                                f"{most_confident}",
+                                f"{comparison_results[most_confident]['confidence']:.3f}",
+                            )
+                            st.metric(
+                                "Least Confident",
+                                f"{least_confident}",
+                                f"{comparison_results[least_confident]['confidence']:.3f}",
+                            )
+
+                            # Store results in session state for potential export
+                        # Store results in session state for potential export
+                        st.session_state["last_comparison_results"] = {
+                            "filename": filename,
+                            "modality": modality,
+                            "models": comparison_results,
+                            "summary": {
+                                "agreement": len(unique_predictions) == 1,
+                                "avg_processing_time": avg_time,
+                                "fastest_model": fastest_model,
+                                "most_confident": most_confident,
+                            },
+                        }
+
+                except Exception as e:
+                    st.error(f"Error during comparison: {str(e)}")
+
+            # Show recent comparison results if available
+            elif "last_comparison_results" in st.session_state:
+                st.info(
+                    "Previous comparison results available. Upload a new file or select a sample to run new comparison."
+                )
+
+    # Show comparison history
+    comparison_stats = ResultsManager.get_comparison_stats()
+    if comparison_stats:
+        st.markdown("#### Comparison History")
+
+        with st.expander("View detailed comparison statistics", expanded=False):
+            # Show model statistics table
+            stats_data = []
+            for model_name, stats in comparison_stats.items():
+                row = {
+                    "Model": model_name,
+                    "Total Predictions": stats["total_predictions"],
+                    "Avg Confidence": f"{stats['avg_confidence']:.3f}",
+                    "Avg Processing Time": f"{stats['avg_processing_time']:.3f}s",
+                    "Accuracy": (
+                        f"{stats['accuracy']:.3f}"
+                        if stats["accuracy"] is not None
+                        else "N/A"
+                    ),
+                }
+                stats_data.append(row)
+
+            if stats_data:
+                import pandas as pd
+
+                stats_df = pd.DataFrame(stats_data)
+                st.dataframe(stats_df, use_container_width=True)
+
+                # Show agreement matrix if multiple models
+                agreement_matrix = ResultsManager.get_agreement_matrix()
+                if not agreement_matrix.empty and len(agreement_matrix) > 1:
+                    st.markdown("**Model Agreement Matrix**")
+                    st.dataframe(agreement_matrix.round(3), use_container_width=True)
+
+                    # Plot agreement heatmap
+                    fig, ax = plt.subplots(figsize=(8, 6))
+                    im = ax.imshow(
+                        agreement_matrix.values, cmap="RdYlGn", vmin=0, vmax=1
+                    )
+
+                    # Add text annotations
+                    for i in range(len(agreement_matrix)):
+                        for j in range(len(agreement_matrix.columns)):
+                            text = ax.text(
+                                j,
+                                i,
+                                f"{agreement_matrix.iloc[i, j]:.2f}",
+                                ha="center",
+                                va="center",
+                                color="black",
+                            )
+
+                    ax.set_xticks(range(len(agreement_matrix.columns)))
+                    ax.set_yticks(range(len(agreement_matrix)))
+                    ax.set_xticklabels(agreement_matrix.columns, rotation=45)
+                    ax.set_yticklabels(agreement_matrix.index)
+                    ax.set_title("Model Agreement Matrix")
+
+                    plt.colorbar(im, ax=ax, label="Agreement Rate")
+                    plt.tight_layout()
+                    st.pyplot(fig)
+
+        # Export functionality
+        if "last_comparison_results" in st.session_state:
+            st.markdown("##### Export Results")
+
+        export_col1, export_col2 = st.columns(2)
+
+        with export_col1:
+            if st.button("📥 Export Comparison (JSON)"):
+                import json
+
+                results = st.session_state["last_comparison_results"]
+                json_str = json.dumps(results, indent=2, default=str)
+                st.download_button(
+                    label="Download JSON",
+                    data=json_str,
+                    file_name=f"comparison_{results['filename'].split('.')[0]}.json",
+                    mime="application/json",
+                )
+
+        with export_col2:
+            if st.button("📊 Export Full Report"):
+                report = ResultsManager.export_comparison_report()
+                st.download_button(
+                    label="Download Full Report",
+                    data=report,
+                    file_name="model_comparison_report.json",
+                    mime="application/json",
+                )
+
+
+# //////////////////////////////////////////
+
+
+def render_performance_tab():
+    """Render the performance tracking and analysis tab."""
+    from utils.performance_tracker import display_performance_dashboard
+
+    display_performance_dashboard()

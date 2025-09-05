@@ -2,40 +2,38 @@
 
 ## Executive Summary
 
-This audit provides a complete technical inventory of the `dev-jas/polymer-aging-ml` repository, a sophisticated machine learning platform for polymer degradation classification using Raman spectroscopy. The system demonstrates production-ready architecture with comprehensive error handling, batch processing capabilities, and an extensible model framework spanning **34 files across 7 directories**.[^1_1][^1_2]
+This audit provides a technical inventory of the dev-jas/polymer-aging-ml repository—a modular machine learning platform for polymer degradation classification using Raman and FTIR spectroscopy. The system features robust error handling, multi-format batch processing, and persistent performance tracking, making it suitable for research, education, and industrial applications.
 
 ## 🏗️ System Architecture
 
 ### Core Infrastructure
 
-The platform employs a **Streamlit-based web application** (`app.py` - 53.7 kB) as its primary interface, supported by a modular backend architecture. The system integrates **PyTorch for deep learning**, **Docker for deployment**, and implements a plugin-based model registry for extensibility.[^1_2][^1_3][^1_4]
+- **Streamlit-based web app** (`app.py`) as the main interface
+- **PyTorch** for deep learning
+- **Docker** for deployment
+- **SQLite** (`outputs/performance_tracking.db`) for performance metrics
+- **Plugin-based model registry** for extensibility
 
-### Directory Structure Analysis
+### Directory Structure
 
-The codebase maintains clean separation of concerns across seven primary directories:[^1_1]
-
-**Root Level Files:**
-
-- `app.py` (53.7 kB) - Main Streamlit application with two-column UI layout
-- `README.md` (4.8 kB) - Comprehensive project documentation
-- `Dockerfile` (421 Bytes) - Python 3.13-slim containerization
-- `requirements.txt` (132 Bytes) - Dependency management without version pinning
-
-**Core Directories:**
-
-- `models/` - Neural network architectures with registry pattern
-- `utils/` - Shared utility modules (43.2 kB total)
-- `scripts/` - CLI tools and automation workflows
-- `outputs/` - Pre-trained model weights storage
-- `sample_data/` - Demo spectrum files for testing
-- `tests/` - Unit testing infrastructure
-- `datasets/` - Data storage directory (content ignored)
+- **app.py**: Main Streamlit application
+- **README.md**: Project documentation
+- **Dockerfile**: Containerization (Python 3.13-slim)
+- **requirements.txt**: Dependency management
+- **models/**: Neural network architectures and registry
+- **utils/**: Shared utilities (preprocessing, batch, results, performance, errors, confidence)
+- **scripts/**: CLI tools for training, inference, data management
+- **outputs/**: Model weights, inference results, performance DB
+- **sample_data/**: Demo spectrum files
+- **tests/**: Unit tests (PyTest)
+- **datasets/**: Data storage
+- **pages/**: Streamlit dashboard pages
 
 ## 🤖 Machine Learning Framework
 
-### Model Registry System
+### Model Registry
 
-The platform implements a **sophisticated factory pattern** for model management in `models/registry.py`. This design enables dynamic model selection and provides a unified interface for different architectures:[^1_5]
+Factory pattern in `models/registry.py` enables dynamic model selection:
 
 ```python
 _REGISTRY: Dict[str, Callable[[int], object]] = {
@@ -47,35 +45,31 @@ _REGISTRY: Dict[str, Callable[[int], object]] = {
 
 ### Neural Network Architectures
 
-**1. Figure2CNN (Baseline Model)**[^1_6]
+The platform supports three architectures, offering diverse options for spectral analysis:
 
-- **Architecture**: 4 convolutional layers with progressive channel expansion (1→16→32→64→128)
-- **Classification Head**: 3 fully connected layers (256→128→2 neurons)
-- **Performance**: 94.80% accuracy, 94.30% F1-score
-- **Designation**: Validated exclusively for Raman spectra input
-- **Parameters**: Dynamic flattened size calculation for input flexibility
+**Figure2CNN (Baseline Model):**
 
-**2. ResNet1D (Advanced Model)**[^1_7]
+- Architecture: 4 convolutional layers (1→16→32→64→128), 3 fully connected layers (256→128→2).
+- Performance: 94.80% accuracy, 94.30% F1-score (Raman-only).
+- Parameters: ~500K, supports dynamic input handling.
 
-- **Architecture**: 3 residual blocks with skip connections
-- **Innovation**: 1D residual connections for spectral feature learning
-- **Performance**: 96.20% accuracy, 95.90% F1-score
-- **Efficiency**: Global average pooling reduces parameter count
-- **Parameters**: Approximately 100K (more efficient than baseline)
+**ResNet1D (Advanced Model):**
 
-**3. ResNet18Vision (Deep Architecture)**[^1_8]
+- Architecture: 3 residual blocks with 1D skip connections.
+- Performance: 96.20% accuracy, 95.90% F1-score.
+- Parameters: ~100K, efficient via global average pooling.
 
-- **Design**: 1D adaptation of ResNet-18 with BasicBlock1D modules
-- **Structure**: 4 residual layers with 2 blocks each
-- **Initialization**: Kaiming normal initialization for optimal training
-- **Status**: Under evaluation for spectral analysis applications
+**ResNet18Vision (Experimental):**
+
+- Architecture: 1D-adapted ResNet-18 with 4 layers (2 blocks each).
+- Status: Under evaluation, ~11M parameters.
+- Opportunity: Expand validation for broader spectral applications.
 
 ## 🔧 Data Processing Infrastructure
 
 ### Preprocessing Pipeline
 
-The system implements a **modular preprocessing pipeline** in `utils/preprocessing.py` with five configurable stages:[^1_9]
-
+The system implements a **modular preprocessing pipeline** in `utils/preprocessing.py` with five configurable stages:
 **1. Input Validation Framework:**
 
 - File format verification (`.txt` files exclusively)
@@ -84,16 +78,16 @@ The system implements a **modular preprocessing pipeline** in `utils/preprocessi
 - Monotonic sequence verification for spectral consistency
 - NaN value detection and automatic rejection
 
-**2. Core Processing Steps:**[^1_9]
+**2. Core Processing Steps:**
 
 - **Linear Resampling**: Uniform grid interpolation to 500 points using `scipy.interpolate.interp1d`
 - **Baseline Correction**: Polynomial detrending (configurable degree, default=2)
 - **Savitzky-Golay Smoothing**: Noise reduction (window=11, order=2, configurable)
-- **Min-Max Normalization**: Scaling to range with constant-signal protection[^1_1]
+- **Min-Max Normalization**: Scaling to range with constant-signal protection
 
 ### Batch Processing Framework
 
-The `utils/multifile.py` module (12.5 kB) provides **enterprise-grade batch processing** capabilities:[^1_10]
+The `utils/multifile.py` module (12.5 kB) provides **enterprise-grade batch processing** capabilities:
 
 - **Multi-File Upload**: Streamlit widget supporting simultaneous file selection
 - **Error-Tolerant Processing**: Individual file failures don't interrupt batch operations
@@ -123,7 +117,7 @@ The main application implements a **sophisticated two-column layout** with compr
 
 ### State Management System
 
-The application employs **advanced session state management**:[^1_2]
+The application employs **advanced session state management**:
 
 - Persistent state across Streamlit reruns using `st.session_state`
 - Intelligent caching with content-based hash keys for expensive operations
@@ -134,46 +128,24 @@ The application employs **advanced session state management**:[^1_2]
 
 ### Centralized Error Handling
 
-The `utils/errors.py` module (5.51 kB) implements **production-grade error management**:[^1_11]
+The `utils/errors.py` module provides with **context-aware** logging and user-friendly error messages.
 
-```python
-class ErrorHandler:
-    @staticmethod
-    def log_error(error: Exception, context: str = "", include_traceback: bool = False)
-    @staticmethod
-    def handle_file_error(filename: str, error: Exception) -> str
-    @staticmethod
-    def handle_inference_error(model_name: str, error: Exception) -> str
-```
+### Performance Tracking System
 
-**Key Features:**
+The `utils/performance_tracker.py` module provides a robust system for logging and analyzing performance metrics.
 
-- Context-aware error messages for different operation types
-- Graceful degradation with fallback modes
-- Structured logging with configurable verbosity
-- User-friendly error translation from technical exceptions
+- **Database Logging**: Persists metrics to a SQLite database.
+- **Automated Tracking**: Uses a context manager to automatically track inference time, preprocessing time, and memory usage.
+- **Dashboarding**: Includes functions to generate performance visualizations and summary statistics for the UI.
 
-### Confidence Analysis System
+### Enhanced Results Management
 
-The `utils/confidence.py` module provides **scientific confidence metrics**
+The `utils/results_manager.py` module enables comprehensive session and persistent results tracking.
 
-:
-
-**Softmax-Based Confidence:**
-
-- Normalized probability distributions from model logits
-- Three-tier confidence levels: HIGH (≥80%), MEDIUM (≥60%), LOW (<60%)
-- Color-coded visual indicators with emoji representations
-- Legacy compatibility with logit margin calculations
-
-### Session Results Management
-
-The `utils/results_manager.py` module (8.16 kB) enables **comprehensive session tracking**:
-
-- **In-Memory Storage**: Session-wide results persistence
-- **Export Capabilities**: CSV and JSON download with timestamp formatting
-- **Statistical Analysis**: Automatic accuracy calculation when ground truth available
-- **Data Integrity**: Results survive page refreshes within session boundaries
+- **In-Memory Storage**: Manages results for the current session.
+- **Multi-Model Handling**: Aggregates results from multiple models for comparison.
+- **Export Capabilities**: Exports results to CSV and JSON.
+- **Statistical Analysis**: Calculates accuracy, confidence, and other metrics.
 
 ## 📜 Command-Line Interface
 
@@ -194,17 +166,6 @@ The `scripts/train_model.py` module (6.27 kB) implements **robust model training
 - Deterministic CUDA operations when GPU available
 - Standardized train/validation splitting methodology
 
-### Inference Pipeline
-
-The `scripts/run_inference.py` module (5.88 kB) provides **automated inference capabilities**:
-
-**CLI Features:**
-
-- Preprocessing parity with web interface ensuring consistent results
-- Multiple output formats with detailed metadata inclusion
-- Safe model loading across PyTorch versions with fallback mechanisms
-- Flexible architecture selection via command-line arguments
-
 ### Data Utilities
 
 **File Discovery System:**
@@ -212,17 +173,6 @@ The `scripts/run_inference.py` module (5.88 kB) provides **automated inference c
 - Recursive `.txt` file scanning with label extraction
 - Filename-based labeling convention (`sta-*` = stable, `wea-*` = weathered)
 - Dataset inventory generation with statistical summaries
-
-## 🐳 Deployment Infrastructure
-
-### Docker Configuration
-
-The `Dockerfile` (421 Bytes) implements **optimized containerization**:[^1_12]
-
-- **Base Image**: Python 3.13-slim for minimal attack surface
-- **System Dependencies**: Essential build tools and scientific libraries
-- **Health Monitoring**: HTTP endpoint checking for container wellness
-- **Caching Strategy**: Layered builds with dependency caching for faster rebuilds
 
 ### Dependency Management
 
@@ -234,6 +184,36 @@ The `requirements.txt` specifies **core dependencies without version pinning**:[
 - **Visualization**: `matplotlib` for spectrum plotting
 - **API Framework**: `fastapi`, `uvicorn` for potential REST API expansion
 
+## 🐳 Deployment Infrastructure
+
+### Docker Configuration
+
+The Dockerfile uses Python 3.13-slim for efficient containerization:
+
+- Includes essential build tools and scientific libraries.
+- Supports health checks for container wellness.
+- **Roadmap**: Implement multi-stage builds and environment variables for streamlined deployments.
+
+### Confidence Analysis System
+
+The `utils/confidence.py` module provides **scientific confidence metrics**
+
+**Softmax-Based Confidence:**
+
+- Normalized probability distributions from model logits
+- Three-tier confidence levels: HIGH (≥80%), MEDIUM (≥60%), LOW (<60%)
+- Color-coded visual indicators with emoji representations
+- Legacy compatibility with logit margin calculations
+
+### Session Results Management
+
+The `utils/results_manager.py` module (8.16 kB) enables **comprehensive session tracking**:
+
+- **In-Memory Storage**: Session-wide results persistence
+- **Export Capabilities**: CSV and JSON download with timestamp formatting
+- **Statistical Analysis**: Automatic accuracy calculation when ground truth available
+- **Data Integrity**: Results survive page refreshes within session boundaries
+
 ## 🧪 Testing Framework
 
 ### Test Infrastructure
@@ -244,12 +224,12 @@ The `tests/` directory implements **basic validation framework**:
 - **Preprocessing Tests**: Core pipeline functionality validation in `test_preprocessing.py`
 - **Limited Coverage**: Currently covers preprocessing functions only
 
-**Testing Gaps Identified:**
+**Testing Coming Soon:**
 
-- No model architecture unit tests
-- Missing integration tests for UI components
-- No performance benchmarking tests
-- Limited error handling validation
+- Add model architecture unit tests
+- Integration tests for UI components
+- Performance benchmarking tests
+- Improved error handling validation
 
 ## 🔍 Security \& Quality Assessment
 
@@ -271,27 +251,11 @@ The `tests/` directory implements **basic validation framework**:
 - **Error Boundaries**: Multi-level exception handling with graceful degradation
 - **Logging**: Structured logging with appropriate severity levels
 
-### Security Considerations
-
-**Current Protections:**
-
-- Input sanitization through strict parsing rules
-- No arbitrary code execution paths
-- Containerized deployment limiting attack surface
-- Session-based storage preventing data persistence attacks
-
-**Areas Requiring Enhancement:**
-
-- No explicit security headers in web responses
-- Basic authentication/authorization framework absent
-- File upload size limits not explicitly configured
-- No rate limiting mechanisms implemented
-
 ## 🚀 Extensibility Analysis
 
 ### Model Architecture Extensibility
 
-The **registry pattern enables seamless model addition**:[^1_5]
+The **registry pattern enables seamless model addition**:
 
 1. **Implementation**: Create new model class with standardized interface
 2. **Registration**: Add to `models/registry.py` with factory function
@@ -344,72 +308,15 @@ The **registry pattern enables seamless model addition**:[^1_5]
 - Session state pruning for long-running sessions
 - Caching with content-based invalidation
 
-## 🎯 Production Readiness Evaluation
-
-### Strengths
-
-**Architecture Excellence:**
-
-- Clean separation of concerns with modular design
-- Production-grade error handling and logging
-- Intuitive user experience with real-time feedback
-- Scalable batch processing with progress tracking
-- Well-documented, type-hinted codebase
-
-**Operational Readiness:**
-
-- Containerized deployment with health checks
-- Comprehensive preprocessing validation
-- Multiple export formats for integration
-- Session-based results management
-
-### Enhancement Opportunities
-
-**Testing Infrastructure:**
-
-- Expand unit test coverage beyond preprocessing
-- Implement integration tests for UI workflows
-- Add performance regression testing
-- Include security vulnerability scanning
-
-**Monitoring \& Observability:**
-
-- Application performance monitoring integration
-- User analytics and usage patterns tracking
-- Model performance drift detection
-- Resource utilization monitoring
-
-**Security Hardening:**
-
-- Implement proper authentication mechanisms
-- Add rate limiting for API endpoints
-- Configure security headers for web responses
-- Establish audit logging for sensitive operations
-
 ## 🔮 Strategic Development Roadmap
 
-Based on the documented roadmap in `README.md`, the platform targets three strategic expansion paths:[^1_13]
+The project roadmap has been updated to reflect recent progress:
 
-**1. Multi-Model Dashboard Evolution**
-
-- Comparative model evaluation framework
-- Side-by-side performance reporting
-- Automated model retraining pipelines
-- Model versioning and rollback capabilities
-
-**2. Multi-Modal Input Support**
-
-- FTIR spectroscopy integration with dedicated preprocessing
-- Image-based polymer classification via computer vision
-- Cross-modal validation and ensemble methods
-- Unified preprocessing pipeline for multiple modalities
-
-**3. Enterprise Integration Features**
-
-- RESTful API development for programmatic access
-- Database integration for persistent storage
-- User authentication and authorization systems
-- Audit trails and compliance reporting
+- [x] **FTIR Support**: Modular integration of FTIR spectroscopy is complete.
+- [x] **Multi-Model Dashboard**: A model comparison tab has been implemented.
+- [ ] **Image-based Inference**: Future work to include image-based polymer classification.
+- [x] **Performance Tracking**: A performance tracking dashboard has been implemented.
+- [ ] **Enterprise Integration**: Future work to include a RESTful API and more advanced database integration.
 
 ## 💼 Business Logic \& Scientific Workflow
 
@@ -424,7 +331,7 @@ Based on the documented roadmap in `README.md`, the platform targets three strat
 
 ### Scientific Applications
 
-**Research Use Cases:**[^1_13]
+**Research Use Cases:**
 
 - Material science polymer degradation studies
 - Recycling viability assessment for circular economy
@@ -434,7 +341,7 @@ Based on the documented roadmap in `README.md`, the platform targets three strat
 
 ### Data Workflow Architecture
 
-```
+```text
 Input Validation → Spectrum Preprocessing → Model Inference →
 Confidence Analysis → Results Visualization → Export Options
 ```
@@ -475,10 +382,7 @@ The platform successfully bridges academic research and practical application, p
 
 **Risk Assessment:** Low - The codebase demonstrates mature engineering practices with appropriate validation and error handling for production deployment.
 
-**Recommendation:** This platform is ready for production deployment with minimal additional hardening, representing a solid foundation for polymer classification research and industrial applications.
-<span style="display:none">[^1_14][^1_15][^1_16][^1_17][^1_18]</span>
-
-<div style="text-align: center">⁂</div>
+**Recommendation:** This platform is ready for production deployment, representing a solid foundation for polymer classification research and industrial applications.
 
 ### EXTRA
 
@@ -529,22 +433,3 @@ The platform successfully bridges academic research and practical application, p
     Column 1 (Input): Contains the main st.radio for mode selection and the conditional logic to display the single file uploader, batch uploader, or sample selector. It also holds the "Run Analysis" and "Reset All" buttons.
     Column 2 (Results): Contains all the logic for displaying either the batch results or the detailed, tabbed results for a single file (Details, Technical, Explanation).
 ```
-
-[^1_1]: https://huggingface.co/spaces/dev-jas/polymer-aging-ml/tree/main
-[^1_2]: https://huggingface.co/spaces/dev-jas/polymer-aging-ml/tree/main/datasets
-[^1_3]: https://huggingface.co/spaces/dev-jas/polymer-aging-ml
-[^1_4]: https://github.com/KLab-AI3/ml-polymer-recycling
-[^1_5]: https://huggingface.co/spaces/dev-jas/polymer-aging-ml/raw/main/.gitignore
-[^1_6]: https://huggingface.co/spaces/dev-jas/polymer-aging-ml/blob/main/models/resnet_cnn.py
-[^1_7]: https://huggingface.co/spaces/dev-jas/polymer-aging-ml/raw/main/utils/multifile.py
-[^1_8]: https://huggingface.co/spaces/dev-jas/polymer-aging-ml/raw/main/utils/preprocessing.py
-[^1_9]: https://huggingface.co/spaces/dev-jas/polymer-aging-ml/raw/main/utils/audit.py
-[^1_10]: https://huggingface.co/spaces/dev-jas/polymer-aging-ml/raw/main/utils/results_manager.py
-[^1_11]: https://huggingface.co/spaces/dev-jas/polymer-aging-ml/blob/main/scripts/train_model.py
-[^1_12]: https://huggingface.co/spaces/dev-jas/polymer-aging-ml/raw/main/requirements.txt
-[^1_13]: https://doi.org/10.1016/j.resconrec.2022.106718
-[^1_14]: https://huggingface.co/spaces/dev-jas/polymer-aging-ml/raw/main/app.py
-[^1_15]: https://huggingface.co/spaces/dev-jas/polymer-aging-ml/raw/main/Dockerfile
-[^1_16]: https://huggingface.co/spaces/dev-jas/polymer-aging-ml/raw/main/utils/errors.py
-[^1_17]: https://huggingface.co/spaces/dev-jas/polymer-aging-ml/raw/main/utils/confidence.py
-[^1_18]: https://ppl-ai-code-interpreter-files.s3.amazonaws.com/web/direct-files/9fd1eb2028a28085942cb82c9241b5ae/a25e2c38-813f-4d8b-89b3-713f7d24f1fe/3e70b172.md

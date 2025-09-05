@@ -8,6 +8,8 @@ from modules.ui_components import (
     render_sidebar,
     render_results_column,
     render_input_column,
+    render_comparison_tab,
+    render_performance_tab,
     load_css,
 )
 
@@ -27,14 +29,28 @@ def main():
     load_css("static/style.css")
     init_session_state()
 
-    # Render UI components
     render_sidebar()
 
-    col1, col2 = st.columns([1, 1.35], gap="small")
-    with col1:
-        render_input_column()
-    with col2:
-        render_results_column()
+    # Create main tabs for difference analysis modes
+    tab1, tab2, tab3 = st.tabs(
+        ["Standard Analysis", "Model Comparison", "Peformance Tracking"]
+    )
+
+    with tab1:
+        # Standard single-model analysis
+        col1, col2 = st.columns([1, 1.35], gap="small")
+        with col1:
+            render_input_column()
+        with col2:
+            render_results_column()
+
+    with tab2:
+        # Multi-model comparison interface
+        render_comparison_tab()
+
+    with tab3:
+        # Performance tracking interface
+        render_performance_tab()
 
 
 if __name__ == "__main__":
