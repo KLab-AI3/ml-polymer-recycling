@@ -25,7 +25,6 @@ from core_logic import (
     label_file,
 )
 from utils.results_manager import ResultsManager
-from utils.confidence import calculate_softmax_confidence
 from utils.multifile import process_multiple_files, display_batch_results
 from utils.preprocessing import resample_spectrum
 
@@ -971,7 +970,12 @@ def render_comparison_tab():
     """Render the multi-model comparison interface"""
     import streamlit as st
     import matplotlib.pyplot as plt
-    from models.registry import choices, validate_model_list
+    from models.registry import (
+        choices,
+        validate_model_list,
+        models_for_modality,
+        get_models_metadata,
+    )
     from utils.results_manager import ResultsManager
     from core_logic import get_sample_files, run_inference, parse_spectrum_data
     from utils.preprocessing import preprocess_spectrum
@@ -984,18 +988,57 @@ def render_comparison_tab():
         "Compare predictions across different AI models for comprehensive analysis."
     )
 
-    # Model selection for comparison
+    # Modality selector
+    col_mod1, col_mod2 = st.columns([1, 2])
+    with col_mod1:
+        modality = st.selectbox(
+            "Select Modality",
+            ["raman", "ftir"],
+            index=0,
+            help="Choose the spectroscopy modality for analysis",
+            key="comparison_modality",
+        )
+        st.session_state["modality_select"] = modality
+
+    with col_mod2:
+        # Filter models by modality
+        compatible_models = models_for_modality(modality)
+        if not compatible_models:
+            st.error(f"No models available for {modality.upper()} modality")
+            return
+
+        st.info(f"📊 {len(compatible_models)} models available for {modality.upper()}")
+
+    # Enhanced model selection with metadata
     st.markdown("##### Select Models for Comparison")
 
-    available_models = choices()
+    # Display model information
+    models_metadata = get_models_metadata()
+
+    # Create enhanced multiselect with model descriptions
+    model_options = []
+    model_descriptions = {}
+    for model in compatible_models:
+        desc = models_metadata.get(model, {}).get("description", "No description")
+        model_options.append(model)
+        model_descriptions[model] = desc
+
     selected_models = st.multiselect(
         "Choose models to compare",
-        available_models,
-        default=(
-            available_models[:2] if len(available_models) >= 2 else available_models
-        ),
+        model_options,
+        default=(model_options[:2] if len(model_options) >= 2 else model_options),
         help="Select 2 or more models to compare their predictions side-by-side",
+        key="comparison_model_select",
     )
+
+    # Display selected model information
+    if selected_models:
+        with st.expander("Selected Model Details", expanded=False):
+            for model in selected_models:
+                info = models_metadata.get(model, {})
+                st.markdown(f"**{model}**: {info.get('description', 'No description')}")
+                if "citation" in info:
+                    st.caption(f"Citation: {info['citation']}")
 
     if len(selected_models) < 2:
         st.warning("⚠️ Please select at least 2 models for comparison.")
@@ -1062,101 +1105,380 @@ def render_comparison_tab():
                         str(input_text), filename or "unknown_filename"
                     )
 
-                    # Store results
-                    comparison_results = {}
-                    processing_times = {}
+                    # Enhanced comparison with async processing option
+                    use_async = st.checkbox(
+                        "Use asynchronous processing",
+                        value=len(selected_models) > 2,
+                        help="Process models concurrently for faster results",
+                    )
 
-                    progress_bar = st.progress(0)
-                    status_text = st.empty()
+                    # Preprocess spectrum once
+                    _, y_processed = preprocess_spectrum(
+                        x_raw, y_raw, modality=modality, target_len=500
+                    )
 
-                    for i, model_name in enumerate(selected_models):
-                        status_text.text(f"Running inference with {model_name}...")
-
-                        start_time = time.time()
-
-                        # Preprocess spectrum with modality-specific parameters
-                        _, y_processed = preprocess_spectrum(
-                            x_raw, y_raw, modality=modality, target_len=500
+                    if use_async:
+                        # Async processing
+                        from utils.async_inference import (
+                            submit_batch_inference,
+                            wait_for_batch_completion,
                         )
 
-                        # Run inference
-                        prediction, logits_list, probs, inference_time, logits = (
-                            run_inference(y_processed, model_name)
+                        status_text = st.empty()
+                        status_text.text("Starting asynchronous inference...")
+
+                        progress_bar = st.progress(0)
+
+                        # Submit all models for async processing
+                        task_ids = submit_batch_inference(
+                            model_names=selected_models,
+                            input_data=y_processed,
+                            inference_func=run_inference,
                         )
 
-                        processing_time = time.time() - start_time
-
-                        if prediction is not None:
-                            # Map prediction to class name
-                            class_names = ["Stable", "Weathered"]
-                            predicted_class = (
-                                class_names[int(prediction)]
-                                if prediction < len(class_names)
-                                else f"Class_{prediction}"
+                        # Progress callback
+                        def update_progress(progress_data):
+                            completed = sum(
+                                1
+                                for p in progress_data.values()
+                                if p["status"] in ["completed", "failed"]
                             )
-                            confidence = (
-                                max(probs)
-                                if probs is not None and len(probs) > 0
-                                else 0.0
+                            progress_bar.progress(completed / len(selected_models))
+                            status_text.text(
+                                f"Processing: {completed}/{len(selected_models)} models complete"
                             )
 
-                            comparison_results[model_name] = {
-                                "prediction": prediction,
-                                "predicted_class": predicted_class,
-                                "confidence": confidence,
-                                "probs": probs if probs is not None else [],
-                                "logits": (
-                                    logits_list if logits_list is not None else []
-                                ),
-                                "processing_time": processing_time,
-                            }
-                            processing_times[model_name] = processing_time
+                        # Wait for completion
+                        async_results = wait_for_batch_completion(
+                            task_ids, timeout=60.0, progress_callback=update_progress
+                        )
 
-                        progress_bar.progress((i + 1) / len(selected_models))
+                        comparison_results = {}
+                        for model_name in selected_models:
+                            if model_name in async_results:
+                                result = async_results[model_name]
+                                if "error" not in result:
+                                    (
+                                        prediction,
+                                        logits_list,
+                                        probs,
+                                        inference_time,
+                                        logits,
+                                    ) = result
+                                    if prediction is not None:
+                                        class_names = ["Stable", "Weathered"]
+                                        predicted_class = (
+                                            class_names[int(prediction)]
+                                            if prediction < len(class_names)
+                                            else f"Class_{prediction}"
+                                        )
+                                        confidence = (
+                                            max(probs)
+                                            if probs and len(probs) > 0
+                                            else 0.0
+                                        )
 
-                    status_text.text("Comparison complete!")
+                                        comparison_results[model_name] = {
+                                            "prediction": prediction,
+                                            "predicted_class": predicted_class,
+                                            "confidence": confidence,
+                                            "probs": probs if probs is not None else [],
+                                            "logits": (
+                                                logits_list
+                                                if logits_list is not None
+                                                else []
+                                            ),
+                                            "processing_time": inference_time or 0.0,
+                                            "status": "success",
+                                        }
+                                else:
+                                    comparison_results[model_name] = {
+                                        "status": "failed",
+                                        "error": result["error"],
+                                    }
 
-                    # Display results
+                        status_text.text("Asynchronous processing complete!")
+
+                    else:
+                        # Synchronous processing (original)
+                        comparison_results = {}
+                        progress_bar = st.progress(0)
+                        status_text = st.empty()
+
+                        for i, model_name in enumerate(selected_models):
+                            status_text.text(f"Running inference with {model_name}...")
+
+                            start_time = time.time()
+
+                            # Run inference
+                            prediction, logits_list, probs, inference_time, logits = (
+                                run_inference(y_processed, model_name)
+                            )
+
+                            processing_time = time.time() - start_time
+
+                            if prediction is not None:
+                                # Map prediction to class name
+                                class_names = ["Stable", "Weathered"]
+                                predicted_class = (
+                                    class_names[int(prediction)]
+                                    if prediction < len(class_names)
+                                    else f"Class_{prediction}"
+                                )
+                                confidence = (
+                                    max(probs)
+                                    if probs is not None and len(probs) > 0
+                                    else 0.0
+                                )
+
+                                comparison_results[model_name] = {
+                                    "prediction": prediction,
+                                    "predicted_class": predicted_class,
+                                    "confidence": confidence,
+                                    "probs": probs if probs is not None else [],
+                                    "logits": (
+                                        logits_list if logits_list is not None else []
+                                    ),
+                                    "processing_time": processing_time,
+                                    "status": "success",
+                                }
+
+                            progress_bar.progress((i + 1) / len(selected_models))
+
+                        status_text.text("Comparison complete!")
+
+                    # Enhanced results display
                     if comparison_results:
-                        st.markdown("###### Model Predictions")
+                        # Filter successful results
+                        successful_results = {
+                            k: v
+                            for k, v in comparison_results.items()
+                            if v.get("status") == "success"
+                        }
+                        failed_results = {
+                            k: v
+                            for k, v in comparison_results.items()
+                            if v.get("status") == "failed"
+                        }
 
-                        # Create comparison table
-                        import pandas as pd
-
-                        table_data = []
-                        for model_name, result in comparison_results.items():
-                            row = {
-                                "Model": model_name,
-                                "Prediction": result["predicted_class"],
-                                "Confidence": f"{result['confidence']:.3f}",
-                                "Processing Time (s)": f"{result['processing_time']:.3f}",
-                            }
-                            table_data.append(row)
-
-                        df = pd.DataFrame(table_data)
-                        st.dataframe(df, use_container_width=True)
-
-                        # Show confidence comparison
-                        st.markdown("##### Confidence Comparison")
-                        conf_col1, conf_col2 = st.columns(2)
-
-                        with conf_col1:
-                            # Bar chart of confidences
-                            models = list(comparison_results.keys())
-                            confidences = [
-                                comparison_results[m]["confidence"] for m in models
-                            ]
-
-                            fig, ax = plt.subplots(figsize=(8, 5))
-                            bars = ax.bar(
-                                models,
-                                confidences,
-                                alpha=0.7,
-                                color=["steelblue", "orange", "green", "red"][
-                                    : len(models)
-                                ],
+                        if failed_results:
+                            st.error(
+                                f"Failed models: {', '.join(failed_results.keys())}"
                             )
-                            ax.set_ylabel("Confidence")
+                            for model, result in failed_results.items():
+                                st.error(
+                                    f"{model}: {result.get('error', 'Unknown error')}"
+                                )
+
+                        if successful_results:
+                            st.markdown("###### Model Predictions")
+
+                            # Create enhanced comparison table
+                            import pandas as pd
+
+                            table_data = []
+                            for model_name, result in successful_results.items():
+                                row = {
+                                    "Model": model_name,
+                                    "Prediction": result["predicted_class"],
+                                    "Confidence": f"{result['confidence']:.3f}",
+                                    "Processing Time (s)": f"{result['processing_time']:.3f}",
+                                    "Agreement": (
+                                        "✓"
+                                        if len(
+                                            set(
+                                                r["prediction"]
+                                                for r in successful_results.values()
+                                            )
+                                        )
+                                        == 1
+                                        else "✗"
+                                    ),
+                                }
+                                table_data.append(row)
+
+                            df = pd.DataFrame(table_data)
+                            st.dataframe(df, use_container_width=True)
+
+                            # Model agreement analysis
+                            predictions = [
+                                r["prediction"] for r in successful_results.values()
+                            ]
+                            agreement_rate = len(set(predictions)) == 1
+
+                            if agreement_rate:
+                                st.success("🎯 All models agree on the prediction!")
+                            else:
+                                st.warning(
+                                    "⚠️ Models disagree - review individual confidences"
+                                )
+
+                            # Enhanced visualization section
+                            st.markdown("##### Enhanced Analysis Dashboard")
+
+                            tab1, tab2, tab3 = st.tabs(
+                                [
+                                    "Confidence Analysis",
+                                    "Performance Metrics",
+                                    "Detailed Breakdown",
+                                ]
+                            )
+
+                            with tab1:
+                                # Enhanced confidence comparison
+                                col1, col2 = st.columns(2)
+
+                                with col1:
+                                    # Bar chart of confidences
+                                    models = list(successful_results.keys())
+                                    confidences = [
+                                        successful_results[m]["confidence"]
+                                        for m in models
+                                    ]
+
+                                    fig, ax = plt.subplots(figsize=(8, 5))
+                                    colors = plt.cm.Set3(np.linspace(0, 1, len(models)))
+                                    bars = ax.bar(
+                                        models, confidences, alpha=0.8, color=colors
+                                    )
+
+                                    # Add value labels on bars
+                                    for bar, conf in zip(bars, confidences):
+                                        height = bar.get_height()
+                                        ax.text(
+                                            bar.get_x() + bar.get_width() / 2.0,
+                                            height + 0.01,
+                                            f"{conf:.3f}",
+                                            ha="center",
+                                            va="bottom",
+                                        )
+
+                                    ax.set_ylabel("Confidence")
+                                    ax.set_title("Model Confidence Comparison")
+                                    ax.set_ylim(0, 1.1)
+                                    plt.xticks(rotation=45)
+                                    plt.tight_layout()
+                                    st.pyplot(fig)
+
+                                with col2:
+                                    # Confidence distribution
+                                    st.markdown("**Confidence Statistics**")
+                                    conf_stats = {
+                                        "Mean": np.mean(confidences),
+                                        "Std Dev": np.std(confidences),
+                                        "Min": np.min(confidences),
+                                        "Max": np.max(confidences),
+                                        "Range": np.max(confidences)
+                                        - np.min(confidences),
+                                    }
+
+                                    for stat, value in conf_stats.items():
+                                        st.metric(stat, f"{value:.4f}")
+
+                            with tab2:
+                                # Performance metrics
+                                times = [
+                                    successful_results[m]["processing_time"]
+                                    for m in models
+                                ]
+
+                                perf_col1, perf_col2 = st.columns(2)
+
+                                with perf_col1:
+                                    # Processing time comparison
+                                    fig, ax = plt.subplots(figsize=(8, 5))
+                                    bars = ax.bar(
+                                        models, times, alpha=0.8, color="skyblue"
+                                    )
+
+                                    for bar, time_val in zip(bars, times):
+                                        height = bar.get_height()
+                                        ax.text(
+                                            bar.get_x() + bar.get_width() / 2.0,
+                                            height + 0.001,
+                                            f"{time_val:.3f}s",
+                                            ha="center",
+                                            va="bottom",
+                                        )
+
+                                    ax.set_ylabel("Processing Time (s)")
+                                    ax.set_title("Model Processing Time Comparison")
+                                    plt.xticks(rotation=45)
+                                    plt.tight_layout()
+                                    st.pyplot(fig)
+
+                                with perf_col2:
+                                    # Performance statistics
+                                    st.markdown("**Performance Statistics**")
+                                    perf_stats = {
+                                        "Fastest Model": models[np.argmin(times)],
+                                        "Slowest Model": models[np.argmax(times)],
+                                        "Total Time": f"{np.sum(times):.3f}s",
+                                        "Average Time": f"{np.mean(times):.3f}s",
+                                        "Speed Difference": f"{np.max(times) - np.min(times):.3f}s",
+                                    }
+
+                                    for stat, value in perf_stats.items():
+                                        st.write(f"**{stat}**: {value}")
+
+                            with tab3:
+                                # Detailed breakdown
+                                for model_name, result in successful_results.items():
+                                    with st.expander(
+                                        f"Detailed Results - {model_name}"
+                                    ):
+                                        col1, col2 = st.columns(2)
+
+                                        with col1:
+                                            st.write(
+                                                f"**Prediction**: {result['predicted_class']}"
+                                            )
+                                            st.write(
+                                                f"**Confidence**: {result['confidence']:.4f}"
+                                            )
+                                            st.write(
+                                                f"**Processing Time**: {result['processing_time']:.4f}s"
+                                            )
+
+                                            if result["probs"]:
+                                                st.write("**Class Probabilities**:")
+                                                class_names = ["Stable", "Weathered"]
+                                                for i, prob in enumerate(
+                                                    result["probs"]
+                                                ):
+                                                    if i < len(class_names):
+                                                        st.write(
+                                                            f"  - {class_names[i]}: {prob:.4f}"
+                                                        )
+
+                                        with col2:
+                                            if result["logits"]:
+                                                st.write("**Raw Logits**:")
+                                                for i, logit in enumerate(
+                                                    result["logits"]
+                                                ):
+                                                    st.write(
+                                                        f"  - Class {i}: {logit:.4f}"
+                                                    )
+
+                            # Export options
+                            st.markdown("##### Export Results")
+                            export_col1, export_col2 = st.columns(2)
+
+                            with export_col1:
+                                if st.button("📋 Copy Results to Clipboard"):
+                                    results_text = df.to_string(index=False)
+                                    st.code(results_text)
+
+                            with export_col2:
+                                # Download results as CSV
+                                csv_data = df.to_csv(index=False)
+                                st.download_button(
+                                    label="💾 Download as CSV",
+                                    data=csv_data,
+                                    file_name=f"model_comparison_{filename}_{time.strftime('%Y%m%d_%H%M%S')}.csv",
+                                    mime="text/csv",
+                                )
                             ax.set_title("Model Confidence Comparison")
                             ax.set_ylim(0, 1)
                             plt.xticks(rotation=45)
@@ -1175,38 +1497,46 @@ def render_comparison_tab():
                             plt.tight_layout()
                             st.pyplot(fig)
 
-                        with conf_col2:
-                            # Agreement analysis
-                            predictions = [
-                                comparison_results[m]["prediction"] for m in models
-                            ]
-                            unique_predictions = set(predictions)
+                    conf_col2 = st.columns(2)
+                    with conf_col2[1]:  # Access the second column explicitly
+                        # Agreement analysis
+                        predictions = [
+                            comparison_results[m]["prediction"]
+                            for m in comparison_results.keys()
+                        ]
+                        unique_predictions = set(predictions)
 
-                            if len(unique_predictions) == 1:
-                                st.success("✅ All models agree on the prediction!")
-                            else:
-                                st.warning("⚠️ Models disagree on the prediction")
+                        if len(unique_predictions) == 1:
+                            st.success("✅ All models agree on the prediction!")
+                        else:
+                            st.warning("⚠️ Models disagree on the prediction")
 
-                                # Show prediction distribution
-                                from collections import Counter
+                            from collections import Counter
 
-                                pred_counts = Counter(predictions)
+                            pred_counts = Counter(predictions)
 
-                                st.markdown("**Prediction Distribution:**")
-                                for pred, count in pred_counts.items():
-                                    class_name = (
-                                        ["Stable", "Weathered"][pred]
-                                        if pred < 2
-                                        else f"Class_{pred}"
-                                    )
-                                    percentage = (count / len(predictions)) * 100
-                                    st.write(
-                                        f"- {class_name}: {count}/{len(predictions)} models ({percentage:.1f}%)"
-                                    )
+                            st.markdown("**Prediction Distribution:**")
+                            for pred, count in pred_counts.items():
+                                class_name = (
+                                    ["Stable", "Weathered"][pred]
+                                    if pred < 2
+                                    else f"Class_{pred}"
+                                )
+                                percentage = (count / len(predictions)) * 100
+                                st.write(
+                                    f"- {class_name}: {count}/{len(predictions)} models ({percentage:.1f}%)"
+                                )
 
                         # Performance metrics
                         st.markdown("##### Performance Metrics")
                         perf_col1, perf_col2 = st.columns(2)
+
+                        # Collect processing times for each model
+                        processing_times = {
+                            model_name: result["processing_time"]
+                            for model_name, result in comparison_results.items()
+                            if result.get("status") == "success"
+                        }
 
                         with perf_col1:
                             avg_time = np.mean(list(processing_times.values()))
@@ -1228,7 +1558,7 @@ def render_comparison_tab():
                             st.metric(
                                 "Slowest Model",
                                 f"{slowest_model}",
-                                f"{processing_times[slowest_model]:.3f}s",
+                                f"{processing_times.get(slowest_model, 0):.3f}s",
                             )
 
                         with perf_col2:
