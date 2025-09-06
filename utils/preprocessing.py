@@ -9,8 +9,7 @@ import numpy as np
 from numpy.typing import DTypeLike
 from scipy.interpolate import interp1d
 from scipy.signal import savgol_filter
-from scipy.interpolate import interp1d
-from typing import Tuple, Literal
+from typing import Tuple, Literal, Optional
 
 TARGET_LENGTH = 500  # Frozen default per PREPROCESSING_BASELINE
 
@@ -32,7 +31,7 @@ MODALITY_PARAMS = {
         "baseline_degree": 2,
         "smooth_window": 13,  # Slightly larger window for FTIR
         "smooth_polyorder": 2,
-        "cosmic_ray_removal": False,  # Could add atmospheric correction
+        "cosmic_ray_removal": False,
         "atmospheric_correction": False,  # Placeholder for future implementation
     },
 }
@@ -111,7 +110,7 @@ def validate_spectrum_range(x: np.ndarray, modality: str = "raman") -> bool:
     in_range = np.sum((x >= min_range) & (x <= max_range))
     total_points = len(x)
 
-    return (in_range / total_points) >= 0.7  # At least 70% should be in range
+    return bool((in_range / total_points) >= 0.7)  # At least 70% should be in range
 
 
 def preprocess_spectrum(
@@ -181,14 +180,12 @@ def preprocess_spectrum(
     if do_smooth:
         y_rs = smooth_spectrum(y_rs, window_length=window_length, polyorder=polyorder)
 
-    # FTIR-specific processing (placeholder for future enhancements)
+    # FTIR-specific processing
     if modality == "ftir":
         if modality_config.get("atmospheric_correction", False):
-            # Placeholder for atmospheric correction
-            pass
-        if modality_config.get("cosmic_ray_removal", False):
-            # Placeholder for cosmic ray removal
-            pass
+            y_rs = remove_atmospheric_interference(y_rs)
+        if modality_config.get("water_correction", False):
+            y_rs = remove_water_vapor_bands(y_rs, x_rs)
 
     if do_normalize:
         y_rs = normalize_spectrum(y_rs)
@@ -196,6 +193,68 @@ def preprocess_spectrum(
     # === Coerce to a real dtype to satisfy static checkers & runtime ===
     out_dt = np.dtype(out_dtype)
     return x_rs.astype(out_dt, copy=False), y_rs.astype(out_dt, copy=False)
+
+
+def remove_atmospheric_interference(y: np.ndarray) -> np.ndarray:
+    """Remove atmospheric CO2 and H2O interference common in FTIR."""
+    y = np.asarray(y, dtype=float)
+
+    # Simple atmospheric correction using median filtering
+    # This is a basic implementation - in practice would use reference spectra
+    from scipy.signal import medfilt
+
+    # Apply median filter to reduce sharp atmospheric lines
+    corrected = medfilt(y, kernel_size=5)
+
+    # Blend with original to preserve peak structure
+    alpha = 0.7  # Weight for original spectrum
+    return alpha * y + (1 - alpha) * corrected
+
+
+def remove_water_vapor_bands(y: np.ndarray, x: np.ndarray) -> np.ndarray:
+    """Remove water vapor interference bands in FTIR spectra."""
+    y = np.asarray(y, dtype=float)
+    x = np.asarray(x, dtype=float)
+
+    # Common water vapor regions in FTIR (cm⁻¹)
+    water_regions = [(3500, 3800), (1300, 1800)]
+
+    corrected_y = y.copy()
+
+    for low, high in water_regions:
+        # Find indices in water vapor region
+        mask = (x >= low) & (x <= high)
+        if np.any(mask):
+            # Simple linear interpolation across water regions
+            indices = np.where(mask)[0]
+            if len(indices) > 2:
+                start_idx, end_idx = indices[0], indices[-1]
+                if start_idx > 0 and end_idx < len(y) - 1:
+                    # Linear interpolation between boundary points
+                    start_val = y[start_idx - 1]
+                    end_val = y[end_idx + 1]
+                    interp_vals = np.linspace(start_val, end_val, len(indices))
+                    corrected_y[mask] = interp_vals
+
+    return corrected_y
+
+
+def apply_ftir_specific_processing(
+    x: np.ndarray,
+    y: np.ndarray,
+    atmospheric_correction: bool = False,
+    water_correction: bool = False,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Apply FTIR-specific preprocessing steps."""
+    processed_y = y.copy()
+
+    if atmospheric_correction:
+        processed_y = remove_atmospheric_interference(processed_y)
+
+    if water_correction:
+        processed_y = remove_water_vapor_bands(processed_y, x)
+
+    return x, processed_y
 
 
 def get_modality_info(modality: str) -> dict:
