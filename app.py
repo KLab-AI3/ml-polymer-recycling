@@ -12,6 +12,8 @@ from modules.ui_components import (
     load_css,
 )
 
+from modules.training_ui import render_training_tab
+
 from utils.image_processing import render_image_upload_interface
 
 st.set_page_config(
@@ -31,12 +33,13 @@ def main():
     render_sidebar()
 
     # Create main tabs for different analysis modes
-    tab1, tab2, tab3, tab4 = st.tabs(
+    tab1, tab2, tab3, tab4, tab5 = st.tabs(
         [
             "Standard Analysis",
             "Model Comparison",
+            "Model Training",
             "Image Analysis",
-            "Peformance Tracking",
+            "Performance Tracking",
         ]
     )
 
@@ -53,11 +56,14 @@ def main():
         render_comparison_tab()
 
     with tab3:
-        # Image analysis interface
-
-        render_image_upload_interface()
+        # Model training interface
+        render_training_tab()
 
     with tab4:
+        # Image analysis interface
+        render_image_upload_interface()
+
+    with tab5:
         # Performance tracking interface
         render_performance_tab()
 
