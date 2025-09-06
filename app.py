@@ -1,5 +1,4 @@
 # In App.py
-
 import streamlit as st
 
 from modules.callbacks import init_session_state
@@ -13,8 +12,8 @@ from modules.ui_components import (
     load_css,
 )
 
+from utils.image_processing import render_image_upload_interface
 
-# --- Page Setup (Called only ONCE) ---
 st.set_page_config(
     page_title="ML Polymer Classification",
     page_icon="🔬",
@@ -31,9 +30,14 @@ def main():
 
     render_sidebar()
 
-    # Create main tabs for difference analysis modes
-    tab1, tab2, tab3 = st.tabs(
-        ["Standard Analysis", "Model Comparison", "Peformance Tracking"]
+    # Create main tabs for different analysis modes
+    tab1, tab2, tab3, tab4 = st.tabs(
+        [
+            "Standard Analysis",
+            "Model Comparison",
+            "Image Analysis",
+            "Peformance Tracking",
+        ]
     )
 
     with tab1:
@@ -49,6 +53,11 @@ def main():
         render_comparison_tab()
 
     with tab3:
+        # Image analysis interface
+
+        render_image_upload_interface()
+
+    with tab4:
         # Performance tracking interface
         render_performance_tab()
 
