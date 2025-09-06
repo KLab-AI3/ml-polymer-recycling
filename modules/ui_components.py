@@ -27,6 +27,7 @@ from core_logic import (
 from utils.results_manager import ResultsManager
 from utils.multifile import process_multiple_files, display_batch_results
 from utils.preprocessing import resample_spectrum
+from utils.confidence import calculate_softmax_confidence
 
 
 def load_css(file_path):
@@ -998,7 +999,9 @@ def render_comparison_tab():
             help="Choose the spectroscopy modality for analysis",
             key="comparison_modality",
         )
-        st.session_state["modality_select"] = modality
+        # Don't override existing session state
+        if "modality_select" not in st.session_state:
+            st.session_state["modality_select"] = modality
 
     with col_mod2:
         # Filter models by modality
