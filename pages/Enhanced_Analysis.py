@@ -1,5 +1,5 @@
 """
-Enhanced Analysis Page for POLYMEROS
+Enhanced Analysis Page
 Advanced multi-modal spectroscopy analysis with modern ML architecture
 """
 
@@ -29,7 +29,8 @@ from modules.modern_ml_architecture import (
 )
 from modules.enhanced_data_pipeline import EnhancedDataPipeline
 from core_logic import load_model, parse_spectrum_data
-from config import MODEL_CONFIG, TARGET_LEN
+from models.registry import choices
+from config import TARGET_LEN
 
 # Removed unused preprocess_spectrum import
 
@@ -182,7 +183,7 @@ def render_transparent_analysis():
     st.header("🧠 Transparent AI Analysis")
 
     # Model selection
-    model_names = list(MODEL_CONFIG.keys())
+    model_names = choices()
     selected_model = st.selectbox("Select AI model:", model_names)
 
     if st.session_state.current_model is None or st.button("Load Model"):
