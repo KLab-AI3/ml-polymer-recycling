@@ -1,7 +1,7 @@
 import os
 
 # --- New Imports ---
-from config import MODEL_CONFIG, TARGET_LEN
+from config import TARGET_LEN
 import time
 import gc
 import torch
@@ -11,6 +11,7 @@ import streamlit as st
 from pathlib import Path
 from config import SAMPLE_DATA_DIR
 from datetime import datetime
+from models.registry import build, choices
 
 
 def label_file(filename: str) -> int:
@@ -37,48 +38,74 @@ def load_state_dict(_mtime, model_path):
 
 @st.cache_resource
 def load_model(model_name):
-    """Load and cache the specified model with error handling"""
-    try:
-        config = MODEL_CONFIG[model_name]
-        model_class = config["class"]
-        model_path = config["path"]
+    # First try registry system (new approach)
+    if model_name in choices():
+        # Use registry system
+        model = build(model_name, TARGET_LEN)
 
-        # Initialize model
-        model = model_class(input_length=TARGET_LEN)
+        # Try to load weights from standard locations
+        weight_paths = [
+            f"model_weights/{model_name}_model.pth",
+            f"outputs/{model_name}_model.pth",
+            f"model_weights/{model_name}.pth",
+            f"outputs/{model_name}.pth",
+        ]
 
-        # Check if model file exists
-        if not os.path.exists(model_path):
-            st.warning(f"⚠️ Model weights not found: {model_path}")
-            st.info("Using randomly initialized model for demonstration purposes.")
-            return model, False
+        weights_loaded = False
+        for weight_path in weight_paths:
+            if os.path.exists(weight_path):
+                try:
+                    mtime = os.path.getmtime(weight_path)
+                    state_dict = load_state_dict(mtime, weight_path)
+                    if state_dict:
+                        model.load_state_dict(state_dict, strict=True)
+                        model.eval()
+                        weights_loaded = True
 
-        # Get mtime for cache invalidation
-        mtime = os.path.getmtime(model_path)
+                except Exception:
+                    continue
 
-        # Load weights
-        state_dict = load_state_dict(mtime, model_path)
-        if state_dict:
-            model.load_state_dict(state_dict, strict=True)
-            if model is None:
-                raise ValueError(
-                    "Model is not loaded. Please check the model configuration or weights."
-                )
-            if model is None:
-                raise ValueError(
-                    "Model is not loaded. Please check the model configuration or weights."
-                )
-            if model is None:
-                raise ValueError(
-                    "Model is not loaded. Please check the model configuration or weights."
-                )
-            model.eval()
-            return model, True
+        if not weights_loaded:
+            st.warning(
+                f"⚠️ Model weights not found for '{model_name}'. Using randomly initialized model."
+            )
+            st.info(
+                "This model will provide random predictions for demonstration purposes."
+            )
+
+        return model, weights_loaded
+
+        # Legacy system fallback (for backward compatibility)
+        if model_name in MODEL_CONFIG:
+            config = MODEL_CONFIG[model_name]
+            model_class = config["class"]
+            model_path = config["path"]
+
+            # Initialize model
+            model = model_class(input_length=TARGET_LEN)
+
+            # Check if model file exists
+            if not os.path.exists(model_path):
+                st.warning(f"⚠️ Model weights not found: {model_path}")
+                st.info("Using randomly initialized model for demonstration purposes.")
+                return model, False
+
+            # Get mtime for cache invalidation
+            mtime = os.path.getmtime(model_path)
+
+            # Load weights
+            state_dict = load_state_dict(mtime, model_path)
+            if state_dict:
+                model.load_state_dict(state_dict, strict=True)
+                model.eval()
+                return model, True
+            else:
+                return model, False
         else:
-            return model, False
-
-    except (FileNotFoundError, KeyError, RuntimeError) as e:
-        st.error(f"❌ Error loading model {model_name}: {str(e)}")
-        return None, False
+            st.error(
+                f"❌ Unknown model '{model_name}'. Available models: {list(MODEL_CONFIG.keys())}"
+            )
+            return None, False
 
 
 def cleanup_memory():
@@ -89,7 +116,7 @@ def cleanup_memory():
 
 
 @st.cache_data
-def run_inference(y_resampled, model_choice, _cache_key=None):
+def run_inference(y_resampled, model_choice, modality: str, _cache_key=None):
     """Run model inference and cache results with performance tracking"""
     from utils.performance_tracker import get_performance_tracker, PerformanceMetrics
     from datetime import datetime
@@ -126,7 +153,6 @@ def run_inference(y_resampled, model_choice, _cache_key=None):
 
     # Log performance metrics
     try:
-        modality = st.session_state.get("modality_select", "raman")
         confidence = float(max(probs)) if probs is not None and len(probs) > 0 else 0.0
 
         metrics = PerformanceMetrics(
