@@ -12,6 +12,7 @@ from pathlib import Path
 import io
 from collections import defaultdict
 import matplotlib.pyplot as plt
+from matplotlib.figure import Figure
 
 
 def local_css(file_name):
@@ -321,8 +322,7 @@ class ResultsManager:
 
         return pd.DataFrame(agreement_matrix, index=all_models, columns=all_models)
 
-    @staticmethod
-    def create_comparison_visualization() -> plt.Figure:
+    def create_comparison_visualization() -> Figure:
         """Create visualization comparing model performance."""
         comparison_stats = ResultsManager.get_comparison_stats()
 
