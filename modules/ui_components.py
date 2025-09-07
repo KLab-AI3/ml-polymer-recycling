@@ -26,7 +26,7 @@ from core_logic import (
     label_file,
 )
 from utils.results_manager import ResultsManager
-from utils.multifile import process_multiple_files, display_batch_results
+from utils.multifile import process_multiple_files
 from utils.preprocessing import resample_spectrum
 from utils.confidence import calculate_softmax_confidence
 
@@ -399,9 +399,9 @@ def render_input_column():
                 st.session_state["batch_results"] = process_multiple_files(
                     uploaded_files=batch_files,
                     model_choice=model_choice,
-                    load_model_func=load_model,
                     run_inference_func=run_inference,
                     label_file_func=label_file,
+                    modality=st.session_state.get("modality_select", "raman"),
                 )
         else:
             try:
