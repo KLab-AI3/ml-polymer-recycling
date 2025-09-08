@@ -4,11 +4,8 @@ Supports conversion of spectral images to processable data.
 """
 
 from typing import Tuple, Optional, List, Dict
-import base64
-import io
 import numpy as np
 from PIL import Image, ImageEnhance, ImageFilter
-import cv2
 import matplotlib.pyplot as plt
 from matplotlib.figure import Figure
 import streamlit as st

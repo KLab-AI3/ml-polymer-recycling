@@ -9,7 +9,12 @@ pinned: false
 license: apache-2.0
 ---
 
-## AI-Driven Polymer Aging Prediction and Classification (v0.1)
+# AI-Driven Polymer Aging Prediction and Classification (v0.1)
+
+[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+![Streamlit](https://img.shields.io/badge/Streamlit-1.25%2B-brightgreen)
+![Docker](https://img.shields.io/badge/docker-ready-blue)
+![HF Space](https://img.shields.io/badge/HF%20Space-Live-blueviolet)
 
 This web application classifies the degradation state of polymers using **Raman and FTIR spectroscopy** and deep learning.
 It is a prototype pipeline for evaluating multiple convolutional neural networks (CNNs) on spectral data.
@@ -20,9 +25,12 @@ It is a prototype pipeline for evaluating multiple convolutional neural networks
 
 - 🔬 **Modalities**: Raman & FTIR spectroscopy
 - 💾 **Input Formats**: `.txt`, `.csv`, `.json` (with auto-detection)
-- 🧠 **Models**: Figure2CNN (baseline), ResNet1D, ResNet18Vision
+- 🧠 **Models**: Figure2CNN (baseline), ResNet1D, ResNet18Vision, Custom CNNs (Enhanced, Efficient, Hybrid)
 - 📊 **Task**: Binary classification — Stable vs Weathered polymers
-- 🚀 **Features**: Multi-model comparison, performance tracking dashboard
+- 🚀 **Features**:
+  - Single-spectrum + Batch Spectrum Analysis
+  - Multi-model comparison
+  - Performance tracking dashboard
 - 🛠️ **Architecture**: PyTorch + Streamlit
 
 ---
@@ -34,8 +42,8 @@ It is a prototype pipeline for evaluating multiple convolutional neural networks
 - [x] **FTIR support** (modular integration complete)
 - [x] **Multi-model comparison dashboard**
 - [x] **Performance tracking dashboard**
-- [ ] Add more trained CNNs for comparison
-- [ ] Image-based inference (future modality)
+- [x] Add more trained CNNs for comparison
+- [x] Image-based inference (future modality)
 - [ ] RESTful API for programmatic access
 
 ---
@@ -44,22 +52,22 @@ It is a prototype pipeline for evaluating multiple convolutional neural networks
 
 The application provides three main analysis modes in a tabbed interface:
 
-1.  **Standard Analysis**:
+1. **Standard Analysis**:
 
-    - Upload a single spectrum file (`.txt`, `.csv`, `.json`) or a batch of files.
-    - Choose a model from the sidebar.
-    - Run analysis and view the prediction, confidence, and technical details.
+   - Upload a single spectrum file (`.txt`, `.csv`, `.json`) or a batch of files.
+   - Choose a model from the sidebar.
+   - Run analysis and view the prediction, confidence, and technical details.
 
-2.  **Model Comparison**:
+2. **Model Comparison**:
 
-    - Upload a single spectrum file.
-    - The app runs inference with all available models.
-    - View a side-by-side comparison of the models' predictions and performance.
+   - Upload a single spectrum file.
+   - The app runs inference with all available models.
+   - View a side-by-side comparison of the models' predictions and performance.
 
-3.  **Performance Tracking**:
-    - Explore a dashboard with visualizations of historical performance data.
-    - Compare model performance across different metrics.
-    - Export performance data in CSV or JSON format.
+3. **Performance Tracking**:
+   - Explore a dashboard with visualizations of historical performance data.
+   - Compare model performance across different metrics.
+   - Export performance data in CSV or JSON format.
 
 ### Supported Input
 
@@ -72,9 +80,9 @@ The application provides three main analysis modes in a tabbed interface:
 
 ## Contributors
 
-Dr. Sanmukh Kuppannagari (Mentor)
-Dr. Metin Karailyan (Mentor)
-Jaser Hasan (Author/Developer)
+- Dr. Sanmukh Kuppannagari (Mentor)
+- Dr. Metin Karailyan (Mentor)
+- Jaser Hasan (Author/Developer)
 
 ## Model Credit
 
@@ -92,15 +100,32 @@ _Resources, Conservation & Recycling_, **188**, 106718.
 - **Live App**: [Hugging Face Space](https://huggingface.co/spaces/dev-jas/polymer-aging-ml)
 - **GitHub Repo**: [ml-polymer-recycling](https://github.com/KLab-AI3/ml-polymer-recycling)
 
+---
+
 ## 🚀 Technical Architecture
 
 **The system is built on a modular, production-ready architecture designed for scalability and maintainability.**
 
-- **Frontend**: A Streamlit-based web application (`app.py`) provides an interactive, multi-tab user interface.
-- **Backend**: PyTorch handles all deep learning operations, including model loading and inference.
-- **Model Management**: A registry pattern (`models/registry.py`) allows for dynamic model loading and easy integration of new architectures.
-- **Data Processing**: A robust, modality-aware preprocessing pipeline (`utils/preprocessing.py`) ensures data integrity and standardization for both Raman and FTIR data.
-- **Multi-Format Parsing**: The `utils/multifile.py` module handles parsing of `.txt`, `.csv`, and `.json` files.
-- **Results Management**: The `utils/results_manager.py` module manages session and persistent results, with support for multi-model comparison and data export.
-- **Performance Tracking**: The `utils/performance_tracker.py` module logs performance metrics to a SQLite database and provides a dashboard for visualization.
-- **Deployment**: The application is containerized using Docker (`Dockerfile`) for reproducible, cross-platform execution.
+- **Frontend**: Streamlit-based web application (`app.py`) with interactive, multi-tab UI.
+- **Backend**: PyTorch for deep learning operations including model loading and inference.
+- **Model Management**: Registry pattern (`models/registry.py`) for dynamic model loading and easy integration of new architectures.
+- **Data Processing**: Modality-aware preprocessing pipeline (`utils/preprocessing.py`) for data integrity and standardization (Raman & FTIR).
+- **Multi-Format Parsing**: `utils/multifile.py` for parsing `.txt`, `.csv`, and `.json` files.
+- **Results Management**: `utils/results_manager.py` for managing session and persistent results, multi-model comparison, and data export.
+- **Performance Tracking**: `utils/performance_tracker.py` logs metrics to SQLite and powers the dashboard.
+- **Deployment**: Containerized via Docker (`Dockerfile`) for reproducible, cross-platform execution.
+
+---
+
+## Notable Additions in `space-deploy` Branch
+
+- Enhanced FTIR support, with modular integration for spectral data.
+- Multi-model comparison dashboard for evaluating multiple CNNs in parallel.
+- Performance tracking dashboard with export options (CSV, JSON).
+- Batch spectrum analysis for high-throughput evaluation.
+- Updated color scheme (teal → yellow) for improved UI clarity.
+- Improved README with Hugging Face Space config and clearer usage instructions.
+- Bug fixes for filename casing and SDK deployment settings.
+- Forward-looking plans for RESTful API and image-based inference.
+
+---
