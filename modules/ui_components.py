@@ -27,7 +27,7 @@ from core_logic import (
 )
 from utils.results_manager import ResultsManager
 from utils.multifile import process_multiple_files
-from utils.preprocessing import resample_spectrum
+from utils.preprocessing import resample_spectrum, validate_spectrum_modality
 from utils.confidence import calculate_softmax_confidence
 
 
@@ -406,6 +406,30 @@ def render_input_column():
         else:
             try:
                 x_raw, y_raw = parse_spectrum_data(st.session_state["input_text"])
+
+                # Validate that spectrum matches selected modality
+                selected_modality = st.session_state.get("modality_select", "raman")
+                is_valid, issues = validate_spectrum_modality(
+                    x_raw, y_raw, selected_modality
+                )
+
+                if not is_valid:
+                    st.warning("⚠️ **Spectrum-Modality Mismatch Detected**")
+                    for issue in issues:
+                        st.warning(f"• {issue}")
+
+                    # Ask user if they want to continue
+                    st.info(
+                        "💡 **Suggestion**: Check if the correct modality is selected in the sidebar, or verify your data file."
+                    )
+
+                    if st.button("⚠️ Continue Anyway", key="continue_with_mismatch"):
+                        st.warning(
+                            "Proceeding with potentially mismatched data. Results may be unreliable."
+                        )
+                    else:
+                        st.stop()  # Stop processing until user confirms
+
                 x_resampled, y_resampled = resample_spectrum(x_raw, y_raw, TARGET_LEN)
                 st.session_state.update(
                     {
@@ -932,18 +956,10 @@ def render_results_column():
 
             ##### Supported Data Format
 
-            -   **File Type:** Plain text (`.txt`)
+            -   **File Type(s):** `.txt`, `.csv`, `.json`
             -   **Content:** Must contain two columns: `wavenumber` and `intensity`.
             -   **Separators:** Values can be separated by spaces or commas.
             -   **Preprocessing:** Your spectrum will be automatically resampled to 500 data points to match the model's input requirements.
-
-            ---
-
-            ##### Example Applications
-            - 🔬 Research on polymer degradation
-            - ♻️ Recycling feasibility assessment
-            - 🌱 Sustainability impact studies
-            - 🏭 Quality control in manufacturing
             """
             )
     else:
@@ -963,18 +979,10 @@ def render_results_column():
 
         ##### Supported Data Format
 
-        -   **File Type:** Plain text (`.txt`)
+        -   **File Type(s):** `.txt`, `.csv`, `.json`
         -   **Content:** Must contain two columns: `wavenumber` and `intensity`.
         -   **Separators:** Values can be separated by spaces or commas.
         -   **Preprocessing:** Your spectrum will be automatically resampled to 500 data points to match the model's input requirements.
-
-        ---
-
-        ##### Example Applications
-        - 🔬 Research on polymer degradation
-        - ♻️ Recycling feasibility assessment
-        - 🌱 Sustainability impact studies
-        - 🏭 Quality control in manufacturing
         """
         )
 
@@ -1004,19 +1012,18 @@ def render_comparison_tab():
         "Compare predictions across different AI models for comprehensive analysis."
     )
 
-    # Modality selector
+    # Modality selector - Use independant state for comparison tab
     col_mod1, col_mod2 = st.columns([1, 2])
     with col_mod1:
+        # Get the current sidebar modality but don't try to sync back
+        current_modality = st.session_state.get("modality_select", "raman")
         modality = st.selectbox(
             "Select Modality",
             ["raman", "ftir"],
-            index=0,
+            index=0 if current_modality == "raman" else 1,
             help="Choose the spectroscopy modality for analysis",
-            key="comparison_modality",
-        )
-        # Don't override existing session state
-        if "modality_select" not in st.session_state:
-            st.session_state["modality_select"] = modality
+            key="comparison_tab_modality",  # Independant key for session state to avoid duplication of UI elements
+        )  # Note: Intentially not synching back to avoid state conflicts
 
     with col_mod2:
         # Filter models by modality
@@ -1122,6 +1129,19 @@ def render_comparison_tab():
                     x_raw, y_raw = parse_spectrum_data(
                         str(input_text), filename or "unknown_filename"
                     )
+
+                    # Validate spectrum modality
+                    is_valid, issues = validate_spectrum_modality(
+                        x_raw, y_raw, modality
+                    )
+                    if not is_valid:
+                        st.error("**Spectrum-Modality Mismatch in Comparison**")
+                        for issue in issues:
+                            st.error(f"• {issue}")
+                        st.info(
+                            "Please check the selected modality or verify your data file."
+                        )
+                        return  # Exit comparison if validation fails
 
                     # Preprocess spectrum once
                     _, y_processed = preprocess_spectrum(
@@ -1272,52 +1292,68 @@ def render_comparison_tab():
                                                 for m in models
                                             ]
 
-                                            fig, ax = plt.subplots(figsize=(8, 5))
-                                            colors = plt.cm.Set3(
-                                                np.linspace(0, 1, len(models))
-                                            )
-                                            bars = ax.bar(
-                                                models,
-                                                confidences,
-                                                alpha=0.8,
-                                                color=colors,
-                                            )
-
-                                            # Add value labels on bars
-                                            for bar, conf in zip(bars, confidences):
-                                                height = bar.get_height()
-                                                ax.text(
-                                                    bar.get_x() + bar.get_width() / 2.0,
-                                                    height + 0.01,
-                                                    f"{conf:.3f}",
-                                                    ha="center",
-                                                    va="bottom",
+                                            if len(confidences) == 0:
+                                                st.warning(
+                                                    "No confidence data available for visualization."
+                                                )
+                                            else:
+                                                fig, ax = plt.subplots(figsize=(8, 5))
+                                                colors = plt.cm.Set3(
+                                                    np.linspace(0, 1, len(models))
                                                 )
 
-                                            ax.set_ylabel("Confidence")
-                                            ax.set_title("Model Confidence Comparison")
-                                            ax.set_ylim(0, 1.1)
-                                            plt.xticks(rotation=45)
-                                            plt.tight_layout()
-                                            st.pyplot(fig)
+                                                bars = ax.bar(
+                                                    models,
+                                                    confidences,
+                                                    alpha=0.8,
+                                                    color=colors,
+                                                )
+
+                                                # Add value labels on bars
+                                                for bar, conf in zip(bars, confidences):
+                                                    height = bar.get_height()
+                                                    ax.text(
+                                                        bar.get_x()
+                                                        + bar.get_width() / 2.0,
+                                                        height + 0.01,
+                                                        f"{conf:.3f}",
+                                                        ha="center",
+                                                        va="bottom",
+                                                    )
+
+                                                ax.set_ylabel("Confidence")
+                                                ax.set_title(
+                                                    "Model Confidence Comparison"
+                                                )
+                                                ax.set_ylim(0, 1.1)
+                                                plt.xticks(rotation=45)
+                                                plt.tight_layout()
+                                                st.pyplot(fig)
 
                                         with col2:
                                             # Confidence distribution
                                             st.markdown("**Confidence Statistics**")
-                                            conf_stats = {
-                                                "Mean": np.mean(confidences),
-                                                "Std Dev": np.std(confidences),
-                                                "Min": np.min(confidences),
-                                                "Max": np.max(confidences),
-                                                "Range": np.max(confidences)
-                                                - np.min(confidences),
-                                            }
+                                            if len(confidences) == 0:
+                                                st.warning(
+                                                    "No confidence data available for statistics."
+                                                )
+                                            else:
+                                                conf_stats = {
+                                                    "Mean": np.mean(confidences),
+                                                    "Std Dev": np.std(confidences),
+                                                    "Min": np.min(confidences),
+                                                    "Max": np.max(confidences),
+                                                    "Range": np.max(confidences)
+                                                    - np.min(confidences),
+                                                }
 
-                                            for stat, value in conf_stats.items():
-                                                st.metric(stat, f"{value:.4f}")
-                                    except Exception as e:
+                                                for stat, value in conf_stats.items():
+                                                    st.metric(stat, f"{value:.4f}")
+
+                                    except ValueError as e:
                                         st.error(f"Error rendering results: {e}")
-                            except Exception as e:
+
+                            except ValueError as e:
                                 st.error(f"Error rendering results: {e}")
                                 st.error(f"Error in Confidence Analysis tab: {e}")
 
@@ -1328,45 +1364,50 @@ def render_comparison_tab():
                                     successful_results[m]["processing_time"]
                                     for m in models
                                 ]
-
-                                perf_col1, perf_col2 = st.columns(2)
-
-                                with perf_col1:
-                                    # Processing time comparison
-                                    fig, ax = plt.subplots(figsize=(8, 5))
-                                    bars = ax.bar(
-                                        models, times, alpha=0.8, color="skyblue"
+                                if len(times) == 0:
+                                    st.warning(
+                                        "No performance data available for visualization"
                                     )
+                                else:
 
-                                    for bar, time_val in zip(bars, times):
-                                        height = bar.get_height()
-                                        ax.text(
-                                            bar.get_x() + bar.get_width() / 2.0,
-                                            height + 0.001,
-                                            f"{time_val:.3f}s",
-                                            ha="center",
-                                            va="bottom",
+                                    perf_col1, perf_col2 = st.columns(2)
+
+                                    with perf_col1:
+                                        # Processing time comparison
+                                        fig, ax = plt.subplots(figsize=(8, 5))
+                                        bars = ax.bar(
+                                            models, times, alpha=0.8, color="skyblue"
                                         )
 
-                                    ax.set_ylabel("Processing Time (s)")
-                                    ax.set_title("Model Processing Time Comparison")
-                                    plt.xticks(rotation=45)
-                                    plt.tight_layout()
-                                    st.pyplot(fig)
+                                        for bar, time_val in zip(bars, times):
+                                            height = bar.get_height()
+                                            ax.text(
+                                                bar.get_x() + bar.get_width() / 2.0,
+                                                height + 0.001,
+                                                f"{time_val:.3f}s",
+                                                ha="center",
+                                                va="bottom",
+                                            )
 
-                                with perf_col2:
-                                    # Performance statistics
-                                    st.markdown("**Performance Statistics**")
-                                    perf_stats = {
-                                        "Fastest Model": models[np.argmin(times)],
-                                        "Slowest Model": models[np.argmax(times)],
-                                        "Total Time": f"{np.sum(times):.3f}s",
-                                        "Average Time": f"{np.mean(times):.3f}s",
-                                        "Speed Difference": f"{np.max(times) - np.min(times):.3f}s",
-                                    }
+                                        ax.set_ylabel("Processing Time (s)")
+                                        ax.set_title("Model Processing Time Comparison")
+                                        plt.xticks(rotation=45)
+                                        plt.tight_layout()
+                                        st.pyplot(fig)
 
-                                    for stat, value in perf_stats.items():
-                                        st.write(f"**{stat}**: {value}")
+                                    with perf_col2:
+                                        # Performance statistics
+                                        st.markdown("**Performance Statistics**")
+                                        perf_stats = {
+                                            "Fastest Model": models[np.argmin(times)],
+                                            "Slowest Model": models[np.argmax(times)],
+                                            "Total Time": f"{np.sum(times):.3f}s",
+                                            "Average Time": f"{np.mean(times):.3f}s",
+                                            "Speed Difference": f"{np.max(times) - np.min(times):.3f}s",
+                                        }
+
+                                        for stat, value in perf_stats.items():
+                                            st.write(f"**{stat}**: {value}")
 
                             with tab3:
                                 # Detailed breakdown
