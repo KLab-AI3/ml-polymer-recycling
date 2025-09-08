@@ -113,6 +113,69 @@ def validate_spectrum_range(x: np.ndarray, modality: str = "raman") -> bool:
     return bool((in_range / total_points) >= 0.7)  # At least 70% should be in range
 
 
+def validate_spectrum_modality(
+    x_data: np.ndarray, y_data: np.ndarray, selected_modality: str
+) -> Tuple[bool, list[str]]:
+    """
+    Validate that spectrum characteristics match the selected modality.
+
+    Args:
+        x_data: Wavenumber array (cm⁻¹)
+        y_data: Intensity array
+        selected_modality: Selected modality ('raman' or 'ftir')
+
+    Returns:
+        Tuple of (is_valid, list_of_issues)
+    """
+    x_data = np.asarray(x_data)
+    y_data = np.asarray(y_data)
+    issues = []
+
+    if selected_modality not in MODALITY_RANGES:
+        issues.append(f"Unknown modality: {selected_modality}")
+        return False, issues
+
+    expected_min, expected_max = MODALITY_RANGES[selected_modality]
+    actual_min, actual_max = np.min(x_data), np.max(x_data)
+
+    # Check wavenumber range
+    if actual_min < expected_min * 0.8:  # Allow 20% tolerance
+        issues.append(
+            f"Minimum wavenumber ({actual_min:.0f} cm⁻¹) is below typical {selected_modality.upper()} range (>{expected_min} cm⁻¹)"
+        )
+
+    if actual_max > expected_max * 1.2:  # Allow 20% tolerance
+        issues.append(
+            f"Maximum wavenumber ({actual_max:.0f} cm⁻¹) is above typical {selected_modality.upper()} range (<{expected_max} cm⁻¹)"
+        )
+
+    # Check for reasonable data range coverage
+    data_range = actual_max - actual_min
+    expected_range = expected_max - expected_min
+    if data_range < expected_range * 0.3:  # Should cover at least 30% of expected range
+        issues.append(
+            f"Data range ({data_range:.0f} cm⁻¹) seems narrow for {selected_modality.upper()} spectroscopy"
+        )
+
+    # FTIR-specific checks
+    if selected_modality == "ftir":
+        # Check for typical FTIR characteristics
+        if actual_min > 1000:  # FTIR usually includes fingerprint region
+            issues.append(
+                "FTIR data should typically include fingerprint region (400-1500 cm⁻¹)"
+            )
+
+    # Raman-specific checks
+    if selected_modality == "raman":
+        # Check for typical Raman characteristics
+        if actual_max < 1000:  # Raman usually extends to higher wavenumbers
+            issues.append(
+                "Raman data typically extends to higher wavenumbers (>1000 cm⁻¹)"
+            )
+
+    return len(issues) == 0, issues
+
+
 def preprocess_spectrum(
     x: np.ndarray,
     y: np.ndarray,
