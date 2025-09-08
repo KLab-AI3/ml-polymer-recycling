@@ -1,29 +1,121 @@
-# Ignore raw data and system clutter
-
-datasets/
+# =========================
+# General Python & System
+# =========================
 __pycache__/
 *.pyc
+*.pyo
+*.bak
+*.tmp
+*.swp
+*.swo
+*.orig
 .DS_store
-*.zip
-*.h5
-*.log
-*.env
-*.yml
-*.json
-*.sh
-.streamlit
-outputs/logs/
-docs/PROJECT_REPORT.md
-wea-*.txt
-sta-*.txt
-S3PR.md
+Thumbs.db
+ehthumbs.db
+Desktop.ini
 
+# =========================
+# IDE & Editor Settings
+# =========================
+.vscode/
+*.code-workspace
+
+# =========================
+# Jupyter Notebooks
+# =========================
+*.ipynb
+.ipynb_checkpoints/
+
+# =========================
+# Streamlit Cache & Temp
+# =========================
+.streamlit/
+**/.streamlit/
+**/.streamlit_cache/
+**/.streamlit_temp/
+
+# =========================
+# Virtual Environments & Build
+# =========================
+venv/
+env/
+.polymer_env/
+*.egg-info/
+dist/
+build/
+
+# =========================
+# Test & Coverage Outputs
+# =========================
+htmlcov/
+.coverage
+.tox/
+.cache/
+pytest_cache/
+*.cover
+
+# =========================
+# Data & Outputs
+# =========================
+datasets/
+deferred/
+outputs/logs/
+outputs/performance_tracking.db
+outputs/*.csv
+outputs/*.json
+outputs/*.png
+outputs/*.jpg
+outputs/*.pdf
 
 # --- Data (keep folder, ignore files) ---
 datasets/**
 !datasets/.gitkeep
 !datasets/.README.md
-# ---------------------------------------
 
-__pycache__.py
-outputs/performance_tracking.db
+# =========================
+# Model Artifacts
+# =========================
+*.pth
+*.pt
+*.ckpt
+*.onnx
+*.h5
+
+# =========================
+# Miscellaneous Large/Export Files
+# =========================
+*.zip
+*.gz
+*.tar
+*.tar.gz
+*.rar
+*.7z
+*.log
+*.env
+*.yml
+*.json
+*.sh
+*.sqlite3
+*.db
+
+# =========================
+# Documentation & Reports
+# =========================
+docs/PROJECT_REPORT.md
+S3PR.md
+
+# =========================
+# Project-specific Data Files
+# =========================
+wea-*.txt
+sta-*.txt
+
+# =========================
+# Office Documents
+# =========================
+*.xls
+*.xlsx
+*.ppt
+*.pptx
+*.doc
+*.docx

@@ -17,3 +17,19 @@ xgboost
 requests
 Pillow
 plotly
+
+# New additions for enhanced features
+psutil
+joblib
+pytest
+tqdm
+pyarrow
+tenacity
+GitPython
+docker
+async-lru
+anyio
+websocket-client
+inquirerpy
+networkx
+mermaid_cli
