@@ -1,14 +1,18 @@
 """Session results management for multi-file inference.
-Handles in-memory results table and export functionality"""
+Handles in-memory results table and export functionality.
+Supports multi-model comparison and statistical analysis."""
 
 import streamlit as st
 import pandas as pd
 import json
 from datetime import datetime
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any, Optional, Tuple
 import numpy as np
 from pathlib import Path
 import io
+from collections import defaultdict
+import matplotlib.pyplot as plt
+from matplotlib.figure import Figure
 
 
 def local_css(file_name):
@@ -198,6 +202,218 @@ class ResultsManager:
         ]
 
         return len(st.session_state[ResultsManager.RESULTS_KEY]) < original_length
+
+    @staticmethod
+    def add_multi_model_results(
+        filename: str,
+        model_results: Dict[str, Dict[str, Any]],
+        ground_truth: Optional[int] = None,
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        """
+        Add results from multiple models for the same file.
+
+        Args:
+            filename: Name of the processed file
+            model_results: Dict with model_name -> result dict
+            ground_truth: True label if available
+            metadata: Additional file metadata
+        """
+        for model_name, result in model_results.items():
+            ResultsManager.add_results(
+                filename=filename,
+                model_name=model_name,
+                prediction=result["prediction"],
+                predicted_class=result["predicted_class"],
+                confidence=result["confidence"],
+                logits=result["logits"],
+                ground_truth=ground_truth,
+                processing_time=result.get("processing_time", 0.0),
+                metadata=metadata,
+            )
+
+    @staticmethod
+    def get_comparison_stats() -> Dict[str, Any]:
+        """Get comparative statistics across all models."""
+        results = ResultsManager.get_results()
+        if not results:
+            return {}
+
+        # Group results by model
+        model_stats = defaultdict(list)
+        for result in results:
+            model_stats[result["model"]].append(result)
+
+        comparison = {}
+        for model_name, model_results in model_stats.items():
+            stats = {
+                "total_predictions": len(model_results),
+                "avg_confidence": np.mean([r["confidence"] for r in model_results]),
+                "std_confidence": np.std([r["confidence"] for r in model_results]),
+                "avg_processing_time": np.mean(
+                    [r["processing_time"] for r in model_results]
+                ),
+                "stable_predictions": sum(
+                    1 for r in model_results if r["prediction"] == 0
+                ),
+                "weathered_predictions": sum(
+                    1 for r in model_results if r["prediction"] == 1
+                ),
+            }
+
+            # Calculate accuracy if ground truth available
+            with_gt = [r for r in model_results if r["ground_truth"] is not None]
+            if with_gt:
+                correct = sum(
+                    1 for r in with_gt if r["prediction"] == r["ground_truth"]
+                )
+                stats["accuracy"] = correct / len(with_gt)
+                stats["num_with_ground_truth"] = len(with_gt)
+            else:
+                stats["accuracy"] = None
+                stats["num_with_ground_truth"] = 0
+
+            comparison[model_name] = stats
+
+        return comparison
+
+    @staticmethod
+    def get_agreement_matrix() -> pd.DataFrame:
+        """
+        Calculate agreement matrix between models for the same files.
+
+        Returns:
+            DataFrame showing model agreement rates
+        """
+        results = ResultsManager.get_results()
+        if not results:
+            return pd.DataFrame()
+
+        # Group by filename
+        file_results = defaultdict(dict)
+        for result in results:
+            file_results[result["filename"]][result["model"]] = result["prediction"]
+
+        # Get unique models
+        all_models = list(set(r["model"] for r in results))
+
+        if len(all_models) < 2:
+            return pd.DataFrame()
+
+        # Calculate agreement matrix
+        agreement_matrix = np.zeros((len(all_models), len(all_models)))
+
+        for i, model1 in enumerate(all_models):
+            for j, model2 in enumerate(all_models):
+                if i == j:
+                    agreement_matrix[i, j] = 1.0  # Perfect self-agreement
+                else:
+                    agreements = 0
+                    comparisons = 0
+
+                    for filename, predictions in file_results.items():
+                        if model1 in predictions and model2 in predictions:
+                            comparisons += 1
+                            if predictions[model1] == predictions[model2]:
+                                agreements += 1
+
+                    if comparisons > 0:
+                        agreement_matrix[i, j] = agreements / comparisons
+
+        return pd.DataFrame(agreement_matrix, index=all_models, columns=all_models)
+
+    def create_comparison_visualization() -> Figure:
+        """Create visualization comparing model performance."""
+        comparison_stats = ResultsManager.get_comparison_stats()
+
+        if not comparison_stats:
+            return None
+
+        fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(12, 8))
+
+        models = list(comparison_stats.keys())
+
+        # 1. Average Confidence
+        confidences = [comparison_stats[m]["avg_confidence"] for m in models]
+        conf_stds = [comparison_stats[m]["std_confidence"] for m in models]
+        ax1.bar(models, confidences, yerr=conf_stds, capsize=5)
+        ax1.set_title("Average Confidence by Model")
+        ax1.set_ylabel("Confidence")
+        ax1.tick_params(axis="x", rotation=45)
+
+        # 2. Processing Time
+        proc_times = [comparison_stats[m]["avg_processing_time"] for m in models]
+        ax2.bar(models, proc_times)
+        ax2.set_title("Average Processing Time")
+        ax2.set_ylabel("Time (seconds)")
+        ax2.tick_params(axis="x", rotation=45)
+
+        # 3. Prediction Distribution
+        stable_counts = [comparison_stats[m]["stable_predictions"] for m in models]
+        weathered_counts = [
+            comparison_stats[m]["weathered_predictions"] for m in models
+        ]
+
+        x = np.arange(len(models))
+        width = 0.35
+        ax3.bar(x - width / 2, stable_counts, width, label="Stable", alpha=0.8)
+        ax3.bar(x + width / 2, weathered_counts, width, label="Weathered", alpha=0.8)
+        ax3.set_title("Prediction Distribution")
+        ax3.set_ylabel("Count")
+        ax3.set_xticks(x)
+        ax3.set_xticklabels(models, rotation=45)
+        ax3.legend()
+
+        # 4. Accuracy (if available)
+        accuracies = []
+        models_with_acc = []
+        for model in models:
+            if comparison_stats[model]["accuracy"] is not None:
+                accuracies.append(comparison_stats[model]["accuracy"])
+                models_with_acc.append(model)
+
+        if accuracies:
+            ax4.bar(models_with_acc, accuracies)
+            ax4.set_title("Model Accuracy (where ground truth available)")
+            ax4.set_ylabel("Accuracy")
+            ax4.set_ylim(0, 1)
+            ax4.tick_params(axis="x", rotation=45)
+        else:
+            ax4.text(
+                0.5,
+                0.5,
+                "No ground truth\navailable",
+                ha="center",
+                va="center",
+                transform=ax4.transAxes,
+            )
+            ax4.set_title("Model Accuracy")
+
+        plt.tight_layout()
+        return fig
+
+    @staticmethod
+    def export_comparison_report() -> str:
+        """Export comprehensive comparison report as JSON."""
+        comparison_stats = ResultsManager.get_comparison_stats()
+        agreement_matrix = ResultsManager.get_agreement_matrix()
+
+        report = {
+            "timestamp": datetime.now().isoformat(),
+            "model_comparison": comparison_stats,
+            "agreement_matrix": (
+                agreement_matrix.to_dict() if not agreement_matrix.empty else {}
+            ),
+            "summary": {
+                "total_models_compared": len(comparison_stats),
+                "total_files_processed": len(
+                    set(r["filename"] for r in ResultsManager.get_results())
+                ),
+                "overall_statistics": ResultsManager.get_summary_stats(),
+            },
+        }
+
+        return json.dumps(report, indent=2, default=str)
 
     @staticmethod
     # ==UTILITY FUNCTIONS==
