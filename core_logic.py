@@ -62,7 +62,7 @@ def load_model(model_name):
                         model.eval()
                         weights_loaded = True
 
-                except Exception:
+                except (OSError, RuntimeError):
                     continue
 
         if not weights_loaded:
@@ -75,37 +75,9 @@ def load_model(model_name):
 
         return model, weights_loaded
 
-        # Legacy system fallback (for backward compatibility)
-        if model_name in MODEL_CONFIG:
-            config = MODEL_CONFIG[model_name]
-            model_class = config["class"]
-            model_path = config["path"]
-
-            # Initialize model
-            model = model_class(input_length=TARGET_LEN)
-
-            # Check if model file exists
-            if not os.path.exists(model_path):
-                st.warning(f"⚠️ Model weights not found: {model_path}")
-                st.info("Using randomly initialized model for demonstration purposes.")
-                return model, False
-
-            # Get mtime for cache invalidation
-            mtime = os.path.getmtime(model_path)
-
-            # Load weights
-            state_dict = load_state_dict(mtime, model_path)
-            if state_dict:
-                model.load_state_dict(state_dict, strict=True)
-                model.eval()
-                return model, True
-            else:
-                return model, False
-        else:
-            st.error(
-                f"❌ Unknown model '{model_name}'. Available models: {list(MODEL_CONFIG.keys())}"
-            )
-            return None, False
+    # If model not in registry, raise error
+    st.error(f"Unknown model '{model_name}'. Available models: {choices()}")
+    return None, False
 
 
 def cleanup_memory():
