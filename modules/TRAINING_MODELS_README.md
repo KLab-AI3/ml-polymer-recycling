@@ -28,7 +28,50 @@ This unified architecture ensures that any improvements to the training process 
 
 ---
 
-## 🛠️ How to Train Models
+## � Acquiring and Preparing Datasets
+
+To train a model, you need a dataset of polymer spectra organized in a specific way. The training engine expects a directory containing two subdirectories:
+
+- `stable/`: Contains spectra for unweathered, stable polymers.
+- `weathered/`: Contains spectra for weathered, degraded polymers.
+
+**Example Directory Structure:**
+
+```
+/my_dataset
+├── /stable
+│   ├── sample_01.txt
+│   ├── sample_02.csv
+│   └── ...
+└── /weathered
+    ├── sample_101.txt
+    ├── sample_102.json
+    └── ...
+```
+
+### Data Format
+
+Each file inside the `stable` and `weathered` folders should be a two-column text-based format representing a single spectrum:
+
+- **Column 1**: Wavenumber (in cm⁻¹)
+- **Column 2**: Intensity / Absorbance
+- **Supported File Types**: `.txt`, `.csv`, `.json`
+- **Separators**: Comma, space, or tab.
+
+### Finding Public Datasets
+
+If you don't have your own data, you can find public datasets from various sources. Here are some starting points and keywords for your search:
+
+- **Open Specy**: A fantastic community-driven library for Raman and FTIR spectra. You can search for specific polymers and download data.
+- **RRUFF™ Project**: An integrated database of Raman spectra, X-ray diffraction, and chemistry data for minerals. While not polymer-focused, it's a great example of a spectral database.
+- **NIST Chemistry WebBook**: Contains FTIR spectra for many chemical compounds.
+- **GitHub & Kaggle**: Search for "polymer spectroscopy dataset", "Raman spectra plastic", or "FTIR microplastics".
+
+When using public data, you may need to manually classify and organize the files into the `stable`/`weathered` structure based on the sample descriptions provided with the dataset.
+
+---
+
+## �🛠️ How to Train Models
 
 With the new unified architecture, you can train models using either the command line or the interactive web UI, depending on your needs.
 

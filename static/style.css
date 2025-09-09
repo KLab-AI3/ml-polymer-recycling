@@ -1,13 +1,14 @@
-/*  THEME-AWARE CUSTOM CSS
+/* ==========================================================================
+   POLYMEROS - THEME-AWARE CUSTOM STYLESHEET
+   ==========================================================================
+   This file uses Streamlit's theme variables (e.g., var(--text-color))
+   to ensure all custom components adapt to both light and dark themes.
+   ========================================================================== */
 
-    This CSS block has been refactored to use Streamlit's internal theme
-    variables. This ensures that all custom components will automatically adapt
-    to both light and dark themes selected by the user in the settings menu.
-*/
-/* ====== Font Imports (Optional but Recommended) ====== */
+/* --- Font Imports --- */
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&family=Fira+Code:wght@400&display=swap');
 
-/* ====== Base & Typography ====== */
+/* --- Base & Typography --- */
 .stApp,
 section[data-testid="stSidebar"],
 div[data-testid="stMetricValue"],
@@ -21,7 +22,7 @@ div[data-testid="stMetricLabel"] {
     font-family: 'Fira Code', monospace;
 }
 
-/* ====== Custom Containers: Tabs & Info Boxes ====== */
+/* --- Custom Containers: Tabs & Info Boxes --- */
 div[data-testid="stTabs"]>div[role="tablist"]+div {
     min-height: 400px;
     /* Uses the secondary background color, which is different in light and dark modes */
@@ -41,7 +42,7 @@ div[data-testid="stTabs"]>div[role="tablist"]+div {
     background-color: var(--secondary-background-color);
 }
 
-/* ====== Key-Value Pair Styling ====== */
+/* --- Key-Value Pair Styling --- */
 .kv-row {
     display: flex;
     justify-content: space-between;
@@ -66,7 +67,44 @@ div[data-testid="stTabs"]>div[role="tablist"]+div {
     text-align: right;
 }
 
-/* ====== Custom Expander Styling ====== */
+/* --- Custom Badges (replaces inline styles) --- */
+.badge {
+    display: inline-block;
+    padding: 4px 8px;
+    font-size: 0.80rem;
+    font-weight: 500;
+    line-height: 1;
+    text-align: center;
+    white-space: nowrap;
+    vertical-align: baseline;
+    border-radius: 6px;
+    font-family: 'Inter', sans-serif;
+}
+
+.badge-info {
+    color: #e2e8f0;
+    background-color: #334155;
+}
+
+.badge-warn {
+    color: #7c2d12;
+    background-color: #fde68a;
+}
+
+.badge-good {
+    color: #064e3b;
+    background-color: #bbf7d0;
+}
+
+.badge-bad {
+    color: #7f1d1d;
+    background-color: #fecaca;
+}
+
+
+/* --- Custom Expander Styling --- */
+
+/* Hide default expander arrow */
 div.stExpander>details>summary::-webkit-details-marker,
 div.stExpander>details>summary::marker,
 div[data-testid="stExpander"] summary svg {
@@ -74,6 +112,7 @@ div[data-testid="stExpander"] summary svg {
 }
 
 div.stExpander>details>summary::after {
+    /* Custom indicator */
     content: '↓';
     font-size: 0.75rem;
     font-weight: 900;
@@ -82,37 +121,19 @@ div.stExpander>details>summary::after {
     border-radius: 999px;
     /* The primary color is set in config.toml and adapted by Streamlit */
     background-color: var(--primary);
-    color: var(--text-color);
-    /* Text on the primary color needs high contrast. White works well for our chosen purple. */
-
+    color: white;
+    /* Assuming primary color is dark enough for white text */
     transition: background-color 0.2s ease-in-out;
 }
 
 div.stExpander>details>summary:hover::after {
-    /* Using a fixed darker shade on hover. A more advanced solution could use color-mix() in CSS. */
     filter: brightness(90%);
 }
 
-/* Specialized Expander Labels */
-.expander-results div[data-testid="stExpander"] summary::after {
-    content: "RESULTS";
-    background-color: #16A34A;
-    /* Green is universal for success */
-
-}
-
 div[data-testid="stExpander"] details {
-    content: "RESULTS";
     background-color: var(--primary);
     border-radius: 10px;
     padding: 10px
-}
-
-.expander-advanced div[data-testid="stExpander"] summary::after {
-    content: "ADVANCED";
-    background-color: #D97706;
-    /* Amber is universal for warning/technical */
-
 }
 
 [data-testid="stExpanderDetails"] {
@@ -122,7 +143,7 @@ div[data-testid="stExpander"] details {
     margin-top: 12px;
 }
 
-/* ====== Sidebar & Metrics ====== */
+/* --- Sidebar & Metrics --- */
 section[data-testid="stSidebar"]>div:first-child {
     background-color: var(--secondary-background-color);
     border-right: 1px solid rgba(128, 128, 128, 0.2);
@@ -138,52 +159,10 @@ div[data-testid="stMetricLabel"] {
     opacity: 0.8;
 }
 
-/* ====== Interactivity & Accessibility ====== */
+/* --- Interactivity & Accessibility --- */
 :focus-visible {
     /* The focus outline now uses the theme's primary color */
-    outline: 20px solid var(--primary);
+    outline: 2px solid var(--primary);
     outline-offset: 2px;
     border-radius: 8px;
 }
-
-.st-key-csv-button,
-.st-key-json-button,
-.st-key-clearall-button {
-    display: block;
-    border: 1px double #1a1a1a98;
-    max-width: 100%;
-    border-radius: 8px;
-
-
-
-}
-
-.st-key-page-link-container {
-    padding: 5px;
-    display: inline-block;
-    justify-items: center;
-    align-self: center;
-    align-content: center;
-    border: 1px double #1a1a1a98;
-    border-radius: 8px;
-    background-color: var(--secondary-background-color);
-    max-width: 100%;
-
-}
-
-.st-key-buttons-container {
-    display: flex;
-    max-width: 100%;
-}
-
-
-
-/* .st-key-csv-button:hover,
-.st-key-json-button:hover,
-.st-key-clearall-button:hover {
-    padding: .25px;
-}
-.st-key-page-link {
-    color: var(--text-color);
-    text-decoration: none;
-}*/

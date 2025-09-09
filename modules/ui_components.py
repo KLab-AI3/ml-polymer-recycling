@@ -67,51 +67,6 @@ def create_spectrum_plot(x_raw, y_raw, x_resampled, y_resampled, _cache_key=None
     return Image.open(buf)
 
 
-def render_confidence_progress(
-    probs: np.ndarray,
-    labels: list[str] = ["Stable", "Weathered"],
-    highlight_idx: Union[int, None] = None,
-    side_by_side: bool = True,
-):
-    """Render Streamlit native progress bars with scientific formatting."""
-    p = np.asarray(probs, dtype=float)
-    p = np.clip(p, 0.0, 1.0)
-
-    if side_by_side:
-        cols = st.columns(len(labels))
-        for i, (lbl, val, col) in enumerate(zip(labels, p, cols)):
-            with col:
-                is_highlighted = highlight_idx is not None and i == highlight_idx
-                label_text = f"**{lbl}**" if is_highlighted else lbl
-                st.markdown(f"{label_text}: {val*100:.1f}%")
-                st.progress(int(round(val * 100)))
-    else:
-        # Vertical layout for better readability
-        for i, (lbl, val) in enumerate(zip(labels, p)):
-            is_highlighted = highlight_idx is not None and i == highlight_idx
-
-            # Create a container for each probability
-            with st.container():
-                col1, col2 = st.columns([3, 1])
-                with col1:
-                    if is_highlighted:
-                        st.markdown(f"**{lbl}** ← Predicted")
-                    else:
-                        st.markdown(f"{lbl}")
-                with col2:
-                    st.metric(label="", value=f"{val*100:.1f}%", delta=None)
-
-                # Progress bar with conditional styling
-                if is_highlighted:
-                    st.progress(int(round(val * 100)))
-                    st.caption("🎯 **Model Prediction**")
-                else:
-                    st.progress(int(round(val * 100)))
-
-                if i < len(labels) - 1:  # Add spacing between items
-                    st.markdown("")
-
-
 from typing import Optional
 
 
@@ -161,24 +116,8 @@ def render_sidebar():
         # Header
         st.header("AI-Driven Polymer Classification")
         st.caption(
-            "Predict polymer degradation (Stable vs Weathered) from Raman/FTIR spectra using validated CNN models. — v0.01"
+            "Analyze and classify polymer degradation with a suite of explainable AI models for Raman & FTIR spectroscopy. — v0.02"
         )
-
-        # Modality Selection
-        st.markdown("##### Spectroscopy Modality")
-        modality = st.selectbox(
-            "Choose Modality",
-            ["raman", "ftir"],
-            index=0,
-            key="modality_select",
-            format_func=lambda x: f"{'Raman' if x == 'raman' else 'FTIR'}",
-        )
-
-        # Display modality info
-        if modality == "ftir":
-            st.info("FTIR mode: 400-4000 cm-1 range with atmospheric correction")
-        else:
-            st.info("Raman mode: 200-4000 cm-1 range with standard preprocessing")
 
         # Model selection
         st.markdown("##### AI Model Selection")
@@ -202,6 +141,7 @@ def render_sidebar():
             model_labels,
             key="model_select",
             on_change=on_model_change,
+            width="stretch",
         )
         model_choice = selected_label.split(" ", 1)[1]
 
@@ -212,36 +152,50 @@ def render_sidebar():
         with st.expander("About This App", icon=":material/info:", expanded=False):
             st.markdown(
                 """
-            **AI-Driven Polymer Aging Prediction and Classification**
+            **AI-Driven Polymer Analysis Platform**
 
-            **Purpose**: Classify polymer degradation using AI<br>
-            **Input**: Raman spectroscopy .txt files<br>
-            **Models**: CNN architectures for classification<br>
-            **Modalities**: Raman and FTIR spectroscopy support<br>
-            **Features**: Multi-model comparison and analysis<br>
+            **Purpose**: Classify, analyze, and understand polymer degradation using explainable AI.
 
+            **Input**: Raman & FTIR spectra in `.txt`, `.csv`, or `.json` formats.
 
-            **Contributors**<br>
-            - Dr. Sanmukh Kuppannagari (Mentor)<br>
-            - Dr. Metin Karailyan (Mentor)<br>
-            - Jaser Hasan (Author)<br>
+            **Features**:
+            - Single & Batch Spectrum Analysis
+            - Multi-Model Performance Comparison
+            - Interactive Model Training Hub
+            - Explainable AI (XAI) with feature importance
+            - Modality-Aware Preprocessing
 
-
-            **Links**<br>
-            [HF Space](https://huggingface.co/spaces/dev-jas/polymer-aging-ml)<br>
+            **Links**  
+            [HF Space](https://huggingface.co/spaces/dev-jas/polymer-aging-ml)  
             [GitHub Repository](https://github.com/KLab-AI3/ml-polymer-recycling)
 
+            **Contributors**
+            - Dr. Sanmukh Kuppannagari (Mentor)
+            - Dr. Metin Karailyan (Mentor)
+            - Jaser Hasan (Author)
 
-            **Citation Figure2CNN (baseline)**
+
+            **Citation (Baseline Model)**
             Neo et al., 2023, *Resour. Conserv. Recycl.*, 188, 106718.
-            [https://doi.org/10.1016/j.resconrec.2022.106718](https://doi.org/10.1016/j.resconrec.2022.106718)
-            """,
-                unsafe_allow_html=True,
+            https://doi.org/10.1016/j.resconrec.2022.106718
+            """
             )
 
 
 def render_input_column():
     st.markdown("##### Data Input")
+
+    # Modality Selection - Moved from sidebar to be the primary context setter
+    st.markdown("###### 1. Choose Spectroscopy Modality")
+    modality = st.selectbox(
+        "Choose Modality",
+        ["raman", "ftir"],
+        index=0,
+        key="modality_select",
+        format_func=lambda x: f"{'Raman' if x == 'raman' else 'FTIR'}",
+        help="Select the type of spectroscopy data you are analyzing. This choice affects preprocessing steps.",
+        width=325,
+    )
 
     mode = st.radio(
         "Input mode",
@@ -332,6 +286,7 @@ def render_input_column():
                 options,
                 key="sample_select",
                 on_change=on_sample_change,
+                width=350,
             )
             if sel != "-- Select Sample --":
                 st.session_state["status_message"] = (
@@ -370,11 +325,6 @@ def render_input_column():
         submitted = st.form_submit_button(
             "Run Analysis", type="primary", disabled=not inference_ready
         )
-    st.button(
-        "Reset All",
-        on_click=reset_ephemeral_state,
-        help="Clear all uploaded files and results.",
-    )
 
     # Handle form submission
     if submitted and inference_ready:
@@ -604,16 +554,10 @@ def render_results_column():
                         return -sum(p * math.log(p) for p in ps)
 
                     def _badge(text, kind="info"):
-                        palette = {
-                            "info": ("#334155", "#e2e8f0"),
-                            "warn": ("#7c2d12", "#fde68a"),
-                            "good": ("#064e3b", "#bbf7d0"),
-                            "bad": ("#7f1d1d", "#fecaca"),
-                        }
-                        bg, fg = palette.get(kind, palette["info"])
+                        # This function now relies on CSS classes defined in style.css
+                        # for better separation of concerns and maintainability.
                         st.markdown(
-                            f"<span style='background:{bg};color:{fg};padding:4px 8px;"
-                            f"border-radius:6px;font-size:0.80rem;white-space:nowrap'>{text}</span>",
+                            f"<span class='badge badge-{kind}'>{text}</span>",
                             unsafe_allow_html=True,
                         )
 
@@ -935,18 +879,17 @@ def render_results_column():
                 with st.container():
                     st.markdown("### 🔍 Methodology & Interpretation")
 
-                    # Process explanation
-                    st.markdown("Analysis Pipeline")
+                    st.markdown("#### Analysis Pipeline")
                     process_steps = [
-                        "📁 **Data Upload**: Raman spectrum file loaded and validated",
-                        "🔍 **Preprocessing**: Spectrum parsed and resampled to 500 data points using linear interpolation",
-                        "🧠 **AI Inference**: Convolutional Neural Network analyzes spectral patterns and molecular signatures",
-                        "📊 **Classification**: Binary prediction with confidence scoring using softmax probabilities",
-                        "✅ **Validation**: Ground truth comparison (when available from filename)",
+                        "📁 **Data Input**: Upload a spectrum file (`.txt`, `.csv`, `.json`) and select the spectroscopy modality (Raman or FTIR).",
+                        "🔬 **Modality-Aware Preprocessing**: The spectrum is automatically processed with steps tailored to the selected modality, including baseline correction, smoothing, normalization, and resampling to a fixed length (500 points).",
+                        "🧠 **AI Inference**: A selected model from the registry (e.g., `Figure2CNN`, `ResNet`, `EnhancedCNN`) analyzes the processed spectrum to identify key patterns.",
+                        "📊 **Classification & Confidence**: The model outputs a binary prediction (Stable vs. Weathered) along with a detailed probability breakdown and confidence score.",
+                        "✅ **Validation & Explainability**: Results are presented with technical diagnostics, and where possible, explainability metrics to interpret the model's decision.",
                     ]
 
                     for step in process_steps:
-                        st.markdown(step)
+                        st.markdown(f"- {step}")
 
                     st.markdown("---")
 
@@ -959,11 +902,10 @@ def render_results_column():
                         st.markdown("**Stable (Unweathered) Polymers:**")
                         st.info(
                             """
-                        - Well-preserved molecular structure
-                        - Minimal oxidative degradation
-                        - Characteristic Raman peaks intact
-                        - 
-                        itable for recycling applications
+                        - **Spectral Signature**: Sharp, well-defined peaks corresponding to the polymer's known vibrational modes.
+                        - **Chemical State**: Minimal evidence of oxidation or chain scission. The polymer backbone is intact.
+                        - **Model Behavior**: The AI identifies a strong match with the spectral fingerprint of a non-degraded reference material.
+                        - **Implication**: Suitable for high-quality recycling applications.
                         """
                         )
 
@@ -971,49 +913,47 @@ def render_results_column():
                         st.markdown("**Weathered (Degraded) Polymers:**")
                         st.warning(
                             """
-                        - Oxidized molecular bonds
-                        - Surface degradation present
-                        - Altered spectral signatures
-                        - May require additional processing
+                        - **Spectral Signature**: Peak broadening, baseline shifts, and the emergence of new peaks (e.g., carbonyl group at ~1715 cm⁻¹).
+                        - **Chemical State**: Evidence of oxidation, hydrolysis, or other degradation pathways.
+                        - **Model Behavior**: The AI detects features that deviate significantly from the reference fingerprint, indicating chemical alteration.
+                        - **Implication**: May require more intensive processing or be unsuitable for certain recycling streams.
                         """
                         )
 
                     st.markdown("---")
 
                     # Applications
-                    st.markdown("#### Research Applications")
+                    st.markdown("#### Research & Industrial Applications")
 
                     applications = [
-                        "🔬 **Material Science**: Polymer degradation studies",
-                        "♻️ **Recycling Research**: Viability assessment for circular economy",
-                        "🌱 **Environmental Science**: Microplastic weathering analysis",
-                        "🏭 **Quality Control**: Manufacturing process monitoring",
-                        "📈 **Longevity Studies**: Material aging prediction",
+                        " **Material Science**: Quantify degradation rates and study aging mechanisms in novel polymers.",
+                        "♻️ **Circular Economy**: Automate the quality control and sorting of post-consumer plastics for recycling.",
+                        "🌱 **Environmental Science**: Analyze the weathering of microplastics in various environmental conditions.",
+                        "🏭 **Industrial QC**: Monitor material integrity and predict product lifetime in manufacturing processes.",
+                        "🤖 **AI-Driven Discovery**: Use explainability features to generate new hypotheses about material behavior.",
                     ]
 
                     for app in applications:
-                        st.markdown(app)
+                        st.markdown(f"- {app}")
 
                     # Technical details
-                    # MODIFIED: Wrap the expander in a div with the 'expander-advanced' class
-                    with st.expander("🔧 Technical Details", expanded=False):
+                    with st.expander(
+                        "🔧 Technical Architecture Details", expanded=False
+                    ):
                         st.markdown(
                             """
-                        **Model Architecture:**
-                        - Convolutional layers for feature extraction
-                        - Residual connections for gradient flow
-                        - Fully connected layers for classification
-                        - Softmax activation for probability distribution
+                        **Model Architectures:**
+                        - The app features a registry of models, including the `Figure2CNN` baseline, `ResNet` variants, and more advanced custom architectures like `EnhancedCNN` and `HybridSpectralNet`.
+                        - Each model is trained on a comprehensive dataset of stable and weathered polymer spectra.
 
-                        **Performance Metrics:**
-                        - Accuracy: 94.8-96.2% on validation set
-                        - F1-Score: 94.3-95.9% across classes
-                        - Robust to spectral noise and baseline variations
+                        **Unified Training Engine:**
+                        - A central `TrainingEngine` ensures that all models are trained and validated using a consistent, reproducible 10-fold cross-validation strategy.
+                        - This engine can be accessed via the **CLI** (`scripts/train_model.py`) for automated experiments or the **UI** ("Model Training Hub") for interactive use.
 
-                        **Data Processing:**
-                        - Input: Raman spectra (any length)
-                        - Resampling: Linear interpolation to 500 points
-                        - Normalization: None (preserves intensity relationships)
+                        **Explainability & Transparency (XAI):**
+                        - **Feature Importance**: The system is designed to incorporate SHAP and gradient-based methods to highlight which spectral regions most influence a prediction.
+                        - **Uncertainty Quantification**: Advanced models can estimate both model (epistemic) and data (aleatoric) uncertainty.
+                        - **Data Provenance**: The enhanced data pipeline tracks every preprocessing step, ensuring full traceability from raw data to final prediction.
                         """
                         )
 
@@ -1023,7 +963,8 @@ def render_results_column():
                     )
 
             with st.expander("Spectrum Preprocessing Results", expanded=False):
-                st.caption("<br>Spectral Analysis", unsafe_allow_html=True)
+                st.markdown("---")
+                st.markdown("##### Spectral Analysis")
 
                 # Add some context about the preprocessing
                 st.markdown(
@@ -1071,6 +1012,7 @@ def render_results_column():
             -   **Content:** Must contain two columns: `wavenumber` and `intensity`.
             -   **Separators:** Values can be separated by spaces or commas.
             -   **Preprocessing:** Your spectrum will be automatically resampled to 500 data points to match the model's input requirements.
+            -   **Examples:** Use the "Sample Data" input mode to see examples, or find public data on sites like Open Specy.
             """
             )
     else:
@@ -1094,6 +1036,7 @@ def render_results_column():
         -   **Content:** Must contain two columns: `wavenumber` and `intensity`.
         -   **Separators:** Values can be separated by spaces or commas.
         -   **Preprocessing:** Your spectrum will be automatically resampled to 500 data points to match the model's input requirements.
+        -   **Examples:** Use the "Sample Data" input mode to see examples, or find public data on sites like Open Specy.
         """
         )
 
@@ -1120,27 +1063,16 @@ def render_comparison_tab():
         "Compare predictions across different AI models for comprehensive analysis."
     )
 
-    # Modality selector - Use independant state for comparison tab
-    col_mod1, col_mod2 = st.columns([1, 2])
-    with col_mod1:
-        # Get the current sidebar modality but don't try to sync back
-        current_modality = st.session_state.get("modality_select", "raman")
-        modality = st.selectbox(
-            "Select Modality",
-            ["raman", "ftir"],
-            index=0 if current_modality == "raman" else 1,
-            help="Choose the spectroscopy modality for analysis",
-            key="comparison_tab_modality",  # Independant key for session state to avoid duplication of UI elements
-        )  # Note: Intentially not synching back to avoid state conflicts
+    # Use the global modality selector from the main page
+    modality = st.session_state.get("modality_select", "raman")
+    st.info(
+        f"Comparing models using **{modality.upper()}** preprocessing parameters. You can change this on the 'Upload and Run' page."
+    )
 
-    with col_mod2:
-        # Filter models by modality
-        compatible_models = models_for_modality(modality)
-        if not compatible_models:
-            st.error(f"No models available for {modality.upper()} modality")
-            return
-
-        st.info(f"📊 {len(compatible_models)} models available for {modality.upper()}")
+    compatible_models = models_for_modality(modality)
+    if not compatible_models:
+        st.error(f"No models available for {modality.upper()} modality")
+        return
 
     # Enhanced model selection with metadata
     st.markdown("##### Select Models for Comparison")

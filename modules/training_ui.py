@@ -113,6 +113,32 @@ def render_dataset_selection():
 
 def render_dataset_upload():
     """Render dataset upload interface"""
+    with st.expander("ℹ️ How to Prepare Your Dataset for Training"):
+        st.markdown(
+            """
+            For the model to train correctly, your dataset needs to be structured properly.
+
+            **1. File Naming & Labeling:**
+            The system can infer the class (`stable` or `weathered`) from the filename. For example, a file named `stable_polymer_1.txt` or `weathered_sample.csv` will be automatically categorized.
+
+            Alternatively, you can upload all your files regardless of name and use the labeling tool that appears below to manually assign each file to a class.
+
+            **2. File Format:**
+            - Each file should contain a single spectrum.
+            - The format should be two columns: **Wavenumber** and **Intensity**.
+            - Supported file types: `.txt`, `.csv`, `.json`.
+
+            **3. Finding Data:**
+            If you need data, here are some great public resources to get started:
+            - **Open Specy**: A large, community-driven library for Raman and FTIR spectra.
+            - **RRUFF™ Project**: An integrated database of Raman spectra, X-ray diffraction, and chemistry data for minerals.
+            - **NIST Chemistry WebBook**: Contains FTIR spectra for many chemical compounds.
+            - **GitHub & Kaggle**: Search for "polymer spectroscopy dataset", "Raman spectra plastic", or "FTIR microplastics".
+
+            When using public data, you may need to manually classify and organize the files into the `stable`/`weathered` structure based on the sample descriptions provided with the dataset.
+            """
+        )
+
     st.markdown("##### Upload Dataset")
 
     uploaded_files = st.file_uploader(
