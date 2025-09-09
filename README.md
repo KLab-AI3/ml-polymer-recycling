@@ -4,7 +4,7 @@ emoji: 🔬
 colorFrom: indigo
 colorTo: yellow
 sdk: streamlit
-app_file: app.py
+app_file: Upload_and_Run.py
 pinned: false
 license: apache-2.0
 ---
@@ -106,7 +106,7 @@ _Resources, Conservation & Recycling_, **188**, 106718.
 
 **The system is built on a modular, production-ready architecture designed for scalability and maintainability.**
 
-- **Frontend**: Streamlit-based web application (`app.py`) with interactive, multi-tab UI.
+- **Frontend**: Streamlit-based web application (`Upload_and_Run.py`) with interactive, multi-tab UI.
 - **Backend**: PyTorch for deep learning operations including model loading and inference.
 - **Model Management**: Registry pattern (`models/registry.py`) for dynamic model loading and easy integration of new architectures.
 - **Data Processing**: Modality-aware preprocessing pipeline (`utils/preprocessing.py`) for data integrity and standardization (Raman & FTIR).
