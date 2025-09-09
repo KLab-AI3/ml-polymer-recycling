@@ -7,6 +7,7 @@ from PIL import Image
 import numpy as np
 import matplotlib.pyplot as plt
 from typing import Union
+import uuid
 import time
 from config import TARGET_LEN, LABEL_MAP, MODEL_WEIGHTS_DIR
 from models.registry import choices, get_model_info
@@ -18,16 +19,13 @@ from modules.callbacks import (
     reset_ephemeral_state,
     log_message,
 )
-from core_logic import (
-    get_sample_files,
-    load_model,
-    run_inference,
-    parse_spectrum_data,
-    label_file,
-)
+from core_logic import get_sample_files, load_model, run_inference, label_file
 from utils.results_manager import ResultsManager
-from utils.multifile import process_multiple_files
-from utils.preprocessing import resample_spectrum, validate_spectrum_modality
+from utils.multifile import process_multiple_files, parse_spectrum_data
+from utils.preprocessing import (
+    validate_spectrum_modality,
+    preprocess_spectrum,
+)
 from utils.confidence import calculate_softmax_confidence
 
 
@@ -67,9 +65,6 @@ def create_spectrum_plot(x_raw, y_raw, x_resampled, y_resampled, _cache_key=None
     plt.close(fig)  # Prevent memory leaks
 
     return Image.open(buf)
-
-
-# //////////////////////////////////////////
 
 
 def render_confidence_progress(
@@ -132,9 +127,6 @@ def render_kv_grid(d: Optional[dict] = None, ncols: int = 2):
             st.caption(f"**{k}:** {v}")
 
 
-# //////////////////////////////////////////
-
-
 def render_model_meta(model_choice: str):
     info = get_model_info(model_choice)
     emoji = info.get("emoji", "")
@@ -152,9 +144,6 @@ def render_model_meta(model_choice: str):
         st.caption(desc)
 
 
-# //////////////////////////////////////////
-
-
 def get_confidence_description(logit_margin):
     """Get human-readable confidence description"""
     if logit_margin > 1000:
@@ -165,9 +154,6 @@ def get_confidence_description(logit_margin):
         return "MODERATE", "🟠"
     else:
         return "LOW", "🔴"
-
-
-# //////////////////////////////////////////
 
 
 def render_sidebar():
@@ -254,7 +240,6 @@ def render_sidebar():
             )
 
 
-# //////////////////////////////////////////
 def render_input_column():
     st.markdown("##### Data Input")
 
@@ -393,6 +378,7 @@ def render_input_column():
 
     # Handle form submission
     if submitted and inference_ready:
+        st.session_state["run_uuid"] = uuid.uuid4().hex[:8]
         if st.session_state.get("batch_mode"):
             batch_files = st.session_state.get("batch_files", [])
             with st.spinner(f"Processing {len(batch_files)} files ..."):
@@ -405,7 +391,31 @@ def render_input_column():
                 )
         else:
             try:
-                x_raw, y_raw = parse_spectrum_data(st.session_state["input_text"])
+                x_raw, y_raw = parse_spectrum_data(
+                    st.session_state["input_text"],
+                    filename=st.session_state.get("filename", "unknown"),
+                )
+
+                # QC Summary
+                st.session_state["qc_summary"] = {
+                    "n_points": len(x_raw),
+                    "x_min": f"{np.min(x_raw):.1f}",
+                    "x_max": f"{np.max(x_raw):.1f}",
+                    "monotonic_x": bool(np.all(np.diff(x_raw) > 0)),
+                    "nan_free": not (
+                        np.any(np.isnan(x_raw)) or np.any(np.isnan(y_raw))
+                    ),
+                    "variance_proxy": f"{np.var(y_raw):.2e}",
+                }
+
+                # Preprocessing parameters
+                preproc_params = {
+                    "target_len": TARGET_LEN,
+                    "modality": st.session_state.get("modality_select", "raman"),
+                    "do_baseline": True,
+                    "do_smooth": True,
+                    "do_normalize": True,
+                }
 
                 # Validate that spectrum matches selected modality
                 selected_modality = st.session_state.get("modality_select", "raman")
@@ -430,7 +440,10 @@ def render_input_column():
                     else:
                         st.stop()  # Stop processing until user confirms
 
-                x_resampled, y_resampled = resample_spectrum(x_raw, y_raw, TARGET_LEN)
+                x_resampled, y_resampled = preprocess_spectrum(
+                    x_raw, y_raw, **preproc_params
+                )
+                st.session_state["preproc_params"] = preproc_params
                 st.session_state.update(
                     {
                         "x_raw": x_raw,
@@ -442,9 +455,6 @@ def render_input_column():
                 )
             except (ValueError, TypeError) as e:
                 st.error(f"Error processing spectrum data: {e}")
-
-
-# //////////////////////////////////////////
 
 
 def render_results_column():
@@ -483,13 +493,18 @@ def render_results_column():
                     else None
                 ),
                 modality=st.session_state.get("modality_select", "raman"),
-                _cache_key=cache_key,
+                cache_key=cache_key,
             )
             if prediction is None:
                 st.error(
                     "❌ Inference failed: Model not loaded. Please check that weights are available."
                 )
                 st.stop()  # prevents the rest of the code in this block from executing
+
+            # Store results in session state for the Details tab
+            st.session_state["prediction"] = prediction
+            st.session_state["probs"] = probs
+            st.session_state["inference_time"] = inference_time
 
             log_message(
                 f"Inference completed in {inference_time:.2f}s, prediction: {prediction}"
@@ -556,6 +571,8 @@ def render_results_column():
                     "⚠️ Model choice is not defined. Please select a model from the sidebar."
                 )
                 st.stop()
+            model_info = get_model_info(model_choice)
+            st.session_state["model_info"] = model_info
             model_path = os.path.join(MODEL_WEIGHTS_DIR, f"{model_choice}_model.pth")
             mtime = os.path.getmtime(model_path) if os.path.exists(model_path) else None
             file_hash = (
@@ -573,88 +590,188 @@ def render_results_column():
             )
 
             if active_tab == "Details":
-                st.markdown('<div class="expander-results">', unsafe_allow_html=True)
                 # Use a dynamic and informative title for the expander
                 with st.expander(f"Results for {filename}", expanded=True):
 
-                    # --- START: STREAMLINED METRICS ---
-                    # A single, powerful row for the most important results.
-                    key_metric_cols = st.columns(3)
+                    # ...inside the Details tab, after metrics...
 
-                    # Metric 1: The Prediction
-                    key_metric_cols[0].metric("Prediction", predicted_class)
+                    import json, math, uuid
 
-                    # Metric 2: The Confidence (with level in tooltip)
-                    confidence_icon = (
-                        "🟢"
-                        if max_confidence >= 0.8
-                        else "🟡" if max_confidence >= 0.6 else "🔴"
-                    )
-                    key_metric_cols[1].metric(
-                        "Confidence",
-                        f"{confidence_icon} {max_confidence:.1%}",
-                        help=f"Confidence Level: {confidence_desc}",
-                    )
+                    st.subheader("Probability Breakdown")
 
-                    # Metric 3: Ground Truth + Correctness (Combined)
-                    if true_label_idx is not None:
-                        is_correct = predicted_class == true_label_str
-                        delta_text = "✅ Correct" if is_correct else "❌ Incorrect"
-                        # Use delta_color="normal" to let the icon provide the visual cue
-                        key_metric_cols[2].metric(
-                            "Ground Truth",
-                            true_label_str,
-                            delta=delta_text,
-                            delta_color="normal",
+                    def _entropy(ps):
+                        ps = [max(min(float(p), 1.0), 1e-12) for p in ps]
+                        return -sum(p * math.log(p) for p in ps)
+
+                    def _badge(text, kind="info"):
+                        palette = {
+                            "info": ("#334155", "#e2e8f0"),
+                            "warn": ("#7c2d12", "#fde68a"),
+                            "good": ("#064e3b", "#bbf7d0"),
+                            "bad": ("#7f1d1d", "#fecaca"),
+                        }
+                        bg, fg = palette.get(kind, palette["info"])
+                        st.markdown(
+                            f"<span style='background:{bg};color:{fg};padding:4px 8px;"
+                            f"border-radius:6px;font-size:0.80rem;white-space:nowrap'>{text}</span>",
+                            unsafe_allow_html=True,
                         )
-                    else:
-                        key_metric_cols[2].metric("Ground Truth", "N/A")
 
-                    st.divider()
-                    # --- END: STREAMLINED METRICS ---
+                    def _render_prob_row(label: str, prob: float, is_pred: bool):
+                        c1, c2, c3 = st.columns([2, 7, 3])
+                        with c1:
+                            st.write(label)
+                        with c2:
+                            st.progress(min(max(prob, 0.0), 1.0))
+                        with c3:
+                            suffix = "  \u2190 Predicted" if is_pred else ""
+                            st.write(f"{prob:.1%}{suffix}")
 
-                    # --- START: CONSOLIDATED CONFIDENCE ANALYSIS ---
-                    st.markdown("##### Probability Breakdown")
+                    probs = st.session_state.get("probs")
+                    prediction = st.session_state.get("prediction")
+                    inference_time = float(st.session_state.get("inference_time", 0.0))
 
-                    # This custom bullet bar logic remains as it is highly specific and valuable
-                    def create_bullet_bar(probability, width=20, predicted=False):
-                        filled_count = int(probability * width)
-                        bar = "▤" * filled_count + "▢" * (width - filled_count)
-                        percentage = f"{probability:.1%}"
-                        pred_marker = "↩ Predicted" if predicted else ""
-                        return f"{bar} {percentage}    {pred_marker}"
-
-                    if probs is not None:
-                        stable_prob, weathered_prob = probs[0], probs[1]
-                    else:
+                    if probs is None or len(probs) != 2:
                         st.error(
-                            "❌ Probability values are missing. Please check the inference process."
+                            "❌ Probability values are missing or invalid. Check the inference process."
                         )
-                        # Default values to prevent further errors
                         stable_prob, weathered_prob = 0.0, 0.0
-                    is_stable_predicted, is_weathered_predicted = (
-                        int(prediction) == 0
-                    ), (int(prediction) == 1)
+                    else:
+                        stable_prob, weathered_prob = float(probs[0]), float(probs[1])
 
-                    st.markdown(
-                        f"""
-                        <div style="font-family: 'Fira Code', monospace;">
-                            Stable (Unweathered)<br>
-                            {create_bullet_bar(stable_prob, predicted=is_stable_predicted)}<br><br>
-                            Weathered (Degraded)<br>
-                            {create_bullet_bar(weathered_prob, predicted=is_weathered_predicted)}
-                        </div>
-                    """,
-                        unsafe_allow_html=True,
+                    is_stable_predicted = (
+                        (int(prediction) == 0)
+                        if prediction is not None
+                        else (stable_prob >= weathered_prob)
+                    )
+                    is_weathered_predicted = (
+                        (int(prediction) == 1)
+                        if prediction is not None
+                        else (weathered_prob > stable_prob)
                     )
 
-                    st.divider()
+                    margin = abs(stable_prob - weathered_prob)
+                    entropy = _entropy([stable_prob, weathered_prob])
+                    thresh = float(st.session_state.get("decision_threshold", 0.5))
+                    cal = st.session_state.get("calibration", {}) or {}
+                    cal_enabled = bool(cal.get("enabled", False))
+                    ece = cal.get("ece", None)
+
+                    ABSTAIN_TAU = 0.10
+                    OOD_MAX_SOFT = 0.60
+                    max_softmax = max(stable_prob, weathered_prob)
+
+                    colA, colB, colC, colD = st.columns([3, 3, 3, 3])
+                    with colA:
+                        st.metric(
+                            "Predicted",
+                            "Stable" if is_stable_predicted else "Weathered",
+                        )
+                    with colB:
+                        st.metric("Decision Margin", f"{margin:.2f}")
+                    with colC:
+                        st.metric("Entropy", f"{entropy:.3f}")
+                    with colD:
+                        st.metric("Threshold", f"{thresh:.2f}")
+
+                    row = st.columns([3, 3, 6])
+                    with row[0]:
+                        if margin < ABSTAIN_TAU:
+                            _badge("Low margin — consider abstain / re-measure", "warn")
+                    with row[1]:
+                        if max_softmax < OOD_MAX_SOFT:
+                            _badge("Low confidence — possible OOD", "bad")
+                    with row[2]:
+                        if cal_enabled:
+                            _badge(
+                                (
+                                    f"Calibrated (ECE={ece:.2%})"
+                                    if isinstance(ece, (int, float))
+                                    else "Calibrated"
+                                ),
+                                "good",
+                            )
+                        else:
+                            _badge(
+                                "Uncalibrated — probabilities may be miscalibrated",
+                                "info",
+                            )
+
+                    st.write("")
+
+                    _render_prob_row(
+                        "Stable (Unweathered)", stable_prob, is_stable_predicted
+                    )
+                    _render_prob_row(
+                        "Weathered (Degraded)", weathered_prob, is_weathered_predicted
+                    )
+
+                    qc = st.session_state.get("qc_summary", {}) or {}
+                    pp = st.session_state.get("preproc_params", {}) or {}
+                    model_info = st.session_state.get("model_info", {}) or {}
+                    run_info = {
+                        "model": model_choice,
+                        "inference_time_s": inference_time,
+                        "run_uuid": st.session_state.get("run_uuid", ""),
+                        "app_commit": st.session_state.get("app_commit", "unknown"),
+                    }
+
+                    with st.expander("Input QC"):
+                        st.write(
+                            {
+                                "n_points": qc.get("n_points", "N/A"),
+                                "x_min_cm-1": qc.get("x_min", "N/A"),
+                                "x_max_cm-1": qc.get("x_max", "N/A"),
+                                "monotonic_x": qc.get("monotonic_x", "N/A"),
+                                "nan_free": qc.get("nan_free", "N/A"),
+                                "variance_proxy": qc.get("variance_proxy", "N/A"),
+                            }
+                        )
+
+                    with st.expander("Preprocessing (applied)"):
+                        st.write(pp)
+
+                    with st.expander("Model & Run"):
+                        st.write(
+                            {
+                                "model_name": model_info.get("name", model_choice),
+                                "version": model_info.get("version", "n/a"),
+                                "weights_mtime": model_info.get("weights_mtime", "n/a"),
+                                "cv_accuracy": model_info.get("cv_accuracy", "n/a"),
+                                "class_priors": model_info.get("class_priors", "n/a"),
+                                **run_info,
+                            }
+                        )
+
+                    export_payload = {
+                        "prediction": "stable" if is_stable_predicted else "weathered",
+                        "probs": {"stable": stable_prob, "weathered": weathered_prob},
+                        "margin": margin,
+                        "entropy": entropy,
+                        "threshold": thresh,
+                        "calibration": {
+                            "enabled": cal_enabled,
+                            "ece": ece,
+                            "method": cal.get("method"),
+                            "T": cal.get("T"),
+                        },
+                        "qc": qc,
+                        "preprocessing": pp,
+                        "model_info": model_info,
+                        "run_info": run_info,
+                    }
+                    fname = f"result_{run_info['run_uuid'] or uuid.uuid4().hex}.json"
+                    st.download_button(
+                        "Download result JSON",
+                        json.dumps(export_payload, indent=2),
+                        file_name=fname,
+                        mime="application/json",
+                    )
 
                     # METADATA FOOTER
                     st.caption(
-                        f"Analyzed with **{st.session_state.get('model_select', 'Unknown')}** in **{inference_time:.2f}s**."
+                        f"Analyzed with **{run_info['model']}** in **{inference_time:.2f}s**."
                     )
-                st.markdown("</div>", unsafe_allow_html=True)
 
             elif active_tab == "Technical":
                 with st.container():
@@ -879,9 +996,6 @@ def render_results_column():
 
                     # Technical details
                     # MODIFIED: Wrap the expander in a div with the 'expander-advanced' class
-                    st.markdown(
-                        '<div class="expander-advanced">', unsafe_allow_html=True
-                    )
                     with st.expander("🔧 Technical Details", expanded=False):
                         st.markdown(
                             """
@@ -902,9 +1016,6 @@ def render_results_column():
                         - Normalization: None (preserves intensity relationships)
                         """
                         )
-                    st.markdown(
-                        "</div>", unsafe_allow_html=True
-                    )  # Close the wrapper div
 
                     render_time = time.time() - start_render
                     log_message(
@@ -987,9 +1098,6 @@ def render_results_column():
         )
 
 
-# //////////////////////////////////////////
-
-
 def render_comparison_tab():
     """Render the multi-model comparison interface"""
     import streamlit as st
@@ -1001,7 +1109,7 @@ def render_comparison_tab():
         get_models_metadata,
     )
     from utils.results_manager import ResultsManager
-    from core_logic import get_sample_files, run_inference, parse_spectrum_data
+    from core_logic import get_sample_files, run_inference
     from utils.preprocessing import preprocess_spectrum
     from utils.multifile import parse_spectrum_data
     import numpy as np
@@ -1159,8 +1267,16 @@ def render_comparison_tab():
                         start_time = time.time()
 
                         # Run inference
+                        cache_key = hashlib.md5(
+                            f"{y_processed.tobytes()}{model_name}".encode()
+                        ).hexdigest()
                         prediction, logits_list, probs, inference_time, logits = (
-                            run_inference(y_processed, model_name, modality=modality)
+                            run_inference(
+                                y_processed,
+                                model_name,
+                                modality=modality,
+                                cache_key=cache_key,
+                            )
                         )
 
                         processing_time = time.time() - start_time
@@ -1587,15 +1703,9 @@ def render_comparison_tab():
                 )
 
 
-# //////////////////////////////////////////
-
-
 from utils.performance_tracker import display_performance_dashboard
 
 
 def render_performance_tab():
     """Render the performance tracking and analysis tab."""
     display_performance_dashboard()
-
-
-# //////////////////////////////////////////

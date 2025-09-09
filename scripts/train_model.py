@@ -1,5 +1,6 @@
 import os
 import sys
+
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from datetime import datetime
 import argparse, numpy as np, torch
@@ -9,6 +10,9 @@ from sklearn.metrics import confusion_matrix
 
 import random
 import json
+
+from utils.training_engine import TrainingEngine
+from utils.training_manager import TrainingConfig
 
 # Reproducibility
 SEED = 42
@@ -36,8 +40,26 @@ parser.add_argument("--batch-size", type=int, default=16)
 parser.add_argument("--epochs", type=int, default=10)
 parser.add_argument("--learning-rate", type=float, default=1e-3)
 parser.add_argument("--model", type=str, default="figure2", choices=model_choices())
+def parse_args():
+    """Parses command-line arguments for training."""
+    parser = argparse.ArgumentParser(
+        description="Run 10-fold CV on Raman data with optional preprocessing."
+    )
+    parser.add_argument("--target-len", type=int, default=500)
+    parser.add_argument("--baseline", action="store_true")
+    parser.add_argument("--smooth", action="store_true")
+    parser.add_argument("--normalize", action="store_true")
+    parser.add_argument("--batch-size", type=int, default=16)
+    parser.add_argument("--epochs", type=int, default=10)
+    parser.add_argument("--learning-rate", type=float, default=1e-3)
+    parser.add_argument("--model", type=str, default="figure2", choices=model_choices())
+    parser.add_argument("--device", type=str, default="auto", choices=["auto", "cpu", "cuda"])
+    parser.add_argument("--dataset-path", type=str, default="datasets/rdwp")
+    parser.add_argument("--num-folds", type=int, default=10)
+    parser.add_argument("--cv-strategy", type=str, default="stratified_kfold", choices=["stratified_kfold", "kfold"])
 
 args = parser.parse_args()
+    return parser.parse_args()
 
 # Constants
 # Raman-only dataset (RDWP)
@@ -48,6 +70,18 @@ NUM_FOLDS = 10
 # Ensure output dirs exist
 os.makedirs("outputs", exist_ok=True)
 os.makedirs("outputs/logs", exist_ok=True)
+def cli_progress_callback(progress_data: dict):
+    """A simple callback to print progress to the console."""
+    if progress_data["type"] == "fold_start":
+        print(f"\n🔁 Fold {progress_data['fold']}/{progress_data['total_folds']}")
+    elif progress_data["type"] == "epoch_end":
+        # Print progress on the same line
+        print(
+            f"  Epoch {progress_data['epoch']}/{progress_data['total_epochs']} | Loss: {progress_data['loss']:.4f}",
+            end="\r",
+        )
+    elif progress_data["type"] == "fold_end":
+        print(f"\n✅ Fold {progress_data['fold']} Accuracy: {progress_data['accuracy'] * 100:.2f}%")
 
 print("Preprocessing Configuration:")
 print(f"    Resample to     : {args.target_len}")
@@ -55,6 +89,27 @@ print(f"    Resample to     : {args.target_len}")
 print(f"    Baseline Correct: {'✅' if args.baseline else '❌'}")
 print(f"    Smoothing       : {'✅' if args.smooth else '❌'}")
 print(f"    Normalization   : {'✅' if args.normalize else '❌'}")
+def save_diagnostics_log(results: dict, config: TrainingConfig, output_path: str):
+    """Saves a JSON log file with training diagnostics."""
+    fold_metrics = [
+        {"fold": i + 1, "accuracy": float(acc), "confusion_matrix": cm}
+        for i, (acc, cm) in enumerate(
+            zip(results["fold_accuracies"], results["confusion_matrices"])
+        )
+    ]
+    log = {
+        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "model_name": config.model_name,
+        "config": config.to_dict(),
+        "fold_metrics": fold_metrics,
+        "overall": {
+            "mean_accuracy": results["mean_accuracy"],
+            "std_accuracy": results["std_accuracy"],
+        },
+    }
+    with open(output_path, "w", encoding="utf-8") as f:
+        json.dump(log, f, indent=2)
+    print(f"🧠 Diagnostics written to {output_path}")
 
 # Load + Preprocess data
 print("🔄 Loading and preprocessing data ...")
@@ -73,24 +128,52 @@ print(f"🔍 Using model: {args.model}")
 skf = StratifiedKFold(n_splits=NUM_FOLDS, shuffle=True, random_state=42)
 fold_accuracies = []
 all_conf_matrices = []
+def main():
+    """Main function to run the training process from the CLI."""
+    args = parse_args()
 
 for fold, (train_idx, val_idx) in enumerate(skf.split(X, y), 1):
     print(f"\n🔁 Fold {fold}/{NUM_FOLDS}")
+    # Ensure output dirs exist
+    os.makedirs("outputs/weights", exist_ok=True)
+    os.makedirs("outputs/logs", exist_ok=True)
 
     X_train, X_val = X[train_idx], X[val_idx]
     y_train, y_val = y[train_idx], y[val_idx]
+    # Create TrainingConfig from CLI args
+    config = TrainingConfig(
+        model_name=args.model,
+        dataset_path=args.dataset_path,
+        target_len=args.target_len,
+        batch_size=args.batch_size,
+        epochs=args.epochs,
+        learning_rate=args.learning_rate,
+        num_folds=args.num_folds,
+        baseline_correction=args.baseline,
+        smoothing=args.smooth,
+        normalization=args.normalize,
+        device=args.device,
+        cv_strategy=args.cv_strategy,
+    )
 
     train_loader = DataLoader(
         TensorDataset(torch.tensor(X_train, dtype=torch.float32), torch.tensor(y_train, dtype=torch.long)),
         batch_size=args.batch_size, shuffle=True)
     val_loader = DataLoader(
         TensorDataset(torch.tensor(X_val,   dtype=torch.float32), torch.tensor(y_val,   dtype=torch.long)))
+    print("🔄 Loading and preprocessing data...")
+    X, y = preprocess_dataset(config.dataset_path, target_len=config.target_len)
+    print(f"✅ Data Loaded: {X.shape[0]} samples, {X.shape[1]} features each.")
+    print(f"🔍 Using model: {config.model_name}")
 
     # Model selection
     model = build_model(args.model, args.target_len).to(DEVICE)
     
     optimizer = torch.optim.Adam(model.parameters(), lr=args.learning_rate)
     criterion = torch.nn.CrossEntropyLoss()
+    # Run training
+    engine = TrainingEngine(config)
+    results = engine.run(X, y, progress_callback=cli_progress_callback)
 
     for epoch in range(args.epochs):
         model.train()
@@ -98,12 +181,18 @@ for fold, (train_idx, val_idx) in enumerate(skf.split(X, y), 1):
         for inputs, labels in train_loader:
             inputs = inputs.unsqueeze(1).to(DEVICE)
             labels = labels.to(DEVICE)
+    # Save final model and logs
+    model_path = f"outputs/weights/{config.model_name}_model.pth"
+    torch.save(results["model_state_dict"], model_path)
+    print(f"\n✅ Model saved to {model_path}")
 
             optimizer.zero_grad()
             loss = criterion(model(inputs), labels)
             loss.backward()
             optimizer.step()
             RUNNING_LOSS += loss.item()
+    log_path = f"outputs/logs/{config.model_name}_cli_diagnostics.json"
+    save_diagnostics_log(results, config, log_path)
 
     # After fold loop (outside the epoch loop), print 1 line:
     print(f"✅ Fold {fold} done. Final loss: {RUNNING_LOSS:.4f}")
@@ -170,3 +259,5 @@ def save_diagnostics_log(fold_acc, confs, args_param, output_path):
 
 log_path = f"outputs/logs/raman_{args.model}_diagnostics.json"
 save_diagnostics_log(fold_accuracies, all_conf_matrices, args, log_path)
+if __name__ == "__main__":
+    main()

@@ -12,16 +12,14 @@ import threading
 import concurrent.futures
 import multiprocessing
 from datetime import datetime, timedelta
-from dataclasses import dataclass, asdict, field
-from enum import Enum
 from typing import Dict, List, Optional, Callable, Any, Tuple
 from pathlib import Path
+from dataclasses import dataclass, field
 
 import torch
 import torch.nn as nn
 import numpy as np
 from torch.utils.data import TensorDataset, DataLoader
-from sklearn.model_selection import StratifiedKFold, KFold, TimeSeriesSplit
 from sklearn.metrics import confusion_matrix, accuracy_score, f1_score
 from sklearn.metrics.pairwise import cosine_similarity
 from scipy.signal import find_peaks
@@ -30,6 +28,14 @@ from scipy.spatial.distance import euclidean
 # Add project-specific imports
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from models.registry import choices as model_choices, build as build_model
+from utils.training_engine import TrainingEngine
+from utils.training_types import (
+    TrainingConfig,
+    TrainingProgress,
+    TrainingStatus,
+    CVStrategy,
+    get_cv_splitter,
+)
 from utils.preprocessing import preprocess_spectrum
 
 
@@ -143,74 +149,21 @@ def calculate_spectroscopy_metrics(
     return metrics
 
 
-def get_cv_splitter(strategy: str, n_splits: int = 10, random_state: int = 42):
-    """Get cross-validation splitter based on strategy"""
-    if strategy == "stratified_kfold":
-        return StratifiedKFold(
-            n_splits=n_splits, shuffle=True, random_state=random_state
-        )
-    elif strategy == "kfold":
-        return KFold(n_splits=n_splits, shuffle=True, random_state=random_state)
-    elif strategy == "time_series_split":
-        return TimeSeriesSplit(n_splits=n_splits)
-    else:
-        # Default to stratified k-fold
-        return StratifiedKFold(
-            n_splits=n_splits, shuffle=True, random_state=random_state
-        )
+@dataclass
+class AugmentationConfig:
+    """Data augmentation configuration"""
+
+    enable_augmentation: bool = False
+    noise_level: float = 0.01  # Noise level for augmentation
 
 
-def augment_spectral_data(
-    X: np.ndarray,
-    y: np.ndarray,
-    noise_level: float = 0.01,
-    augmentation_factor: int = 2,
-) -> Tuple[np.ndarray, np.ndarray]:
-    """Augment spectral data with realistic noise and variations"""
-    if augmentation_factor <= 1:
-        return X, y
+@dataclass
+class PreprocessingConfig:
+    """Preprocessing configuration"""
 
-    augmented_X = [X]
-    augmented_y = [y]
-
-    for i in range(augmentation_factor - 1):
-        # Add Gaussian noise
-        noise = np.random.normal(0, noise_level, X.shape)
-        X_noisy = X + noise
-
-        # Add baseline drift (common in spectroscopy)
-        baseline_drift = np.random.normal(0, noise_level * 0.5, (X.shape[0], 1))
-        X_drift = X_noisy + baseline_drift
-
-        # Add intensity scaling variation
-        intensity_scale = np.random.normal(1.0, 0.05, (X.shape[0], 1))
-        X_scaled = X_drift * intensity_scale
-
-        # Ensure no negative values
-        X_scaled = np.maximum(X_scaled, 0)
-
-        augmented_X.append(X_scaled)
-        augmented_y.append(y)
-
-    return np.vstack(augmented_X), np.hstack(augmented_y)
-
-
-class TrainingStatus(Enum):
-    """Training job status enumeration"""
-
-    PENDING = "pending"
-    RUNNING = "running"
-    COMPLETED = "completed"
-    FAILED = "failed"
-    CANCELLED = "cancelled"
-
-
-class CVStrategy(Enum):
-    """Cross-validation strategy enumeration"""
-
-    STRATIFIED_KFOLD = "stratified_kfold"
-    KFOLD = "kfold"
-    TIME_SERIES_SPLIT = "time_series_split"
+    baseline_correction: bool = True
+    smoothing: bool = True
+    normalization: bool = True
 
 
 @dataclass
@@ -224,15 +177,12 @@ class TrainingConfig:
     epochs: int = 10
     learning_rate: float = 1e-3
     num_folds: int = 10
-    baseline_correction: bool = True
-    smoothing: bool = True
-    normalization: bool = True
     modality: str = "raman"
     device: str = "auto"  # auto, cpu, cuda
     cv_strategy: str = "stratified_kfold"  # New field for CV strategy
     spectral_weight: float = 0.1  # Weight for spectroscopy-specific metrics
-    enable_augmentation: bool = False  # Enable data augmentation
-    noise_level: float = 0.01  # Noise level for augmentation
+    augmentation: AugmentationConfig = field(default_factory=AugmentationConfig)
+    preprocessing: PreprocessingConfig = field(default_factory=PreprocessingConfig)
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for serialization"""
@@ -308,10 +258,6 @@ class TrainingManager:
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(exist_ok=True)
         (self.output_dir / "weights").mkdir(exist_ok=True)
-        (self.output_dir / "logs").mkdir(exist_ok=True)
-
-        # Progress callbacks for UI updates
-        self.progress_callbacks: Dict[str, List[Callable]] = {}
 
     def generate_job_id(self) -> str:
         """Generate unique job ID"""
@@ -324,20 +270,12 @@ class TrainingManager:
         job_id = self.generate_job_id()
         job = TrainingJob(job_id=job_id, config=config)
 
-        # Set up output paths
-        job.weights_path = str(self.output_dir / "weights" / f"{job_id}_model.pth")
-        job.logs_path = str(self.output_dir / "logs" / f"{job_id}_log.json")
-
         self.jobs[job_id] = job
 
-        # Register progress callback
-        if progress_callback:
-            if job_id not in self.progress_callbacks:
-                self.progress_callbacks[job_id] = []
-            self.progress_callbacks[job_id].append(progress_callback)
-
         # Submit to thread pool
-        self.executor.submit(self._run_training_job, job)
+        self.executor.submit(
+            self._run_training_job, job, progress_callback=progress_callback
+        )
 
         return job_id
 
@@ -346,25 +284,39 @@ class TrainingManager:
         try:
             job.status = TrainingStatus.RUNNING
             job.started_at = datetime.now()
-            job.progress.start_time = job.started_at
+            if job.progress:
+                job.progress.start_time = job.started_at
 
-            self._notify_progress(job.job_id, job)
-
-            # Device selection
-            device = self._get_device(job.config.device)
+            if progress_callback:
+                progress_callback(job)
 
             # Load and preprocess data
             X, y = self._load_and_preprocess_data(job)
             if X is None or y is None:
                 raise ValueError("Failed to load dataset")
 
-            # Set reproducibility
-            self._set_reproducibility()
+            # Define a callback to update the job's progress object
+            def engine_progress_callback(progress_data: dict):
+                if job.progress:
+                    if progress_data["type"] == "fold_start":
+                        job.progress.current_fold = progress_data["fold"]
+                    elif progress_data["type"] == "epoch_end":
+                        job.progress.current_epoch = progress_data["epoch"]
+                        job.progress.current_loss = progress_data["loss"]
+                if progress_callback:
+                    progress_callback(job)
 
-            # Run cross-validation training
-            self._run_cross_validation(job, X, y, device)
+            # Instantiate and run the training engine
+            engine = TrainingEngine(job.config)
+            results = engine.run(X, y, progress_callback=engine_progress_callback)
 
-            # Save final results
+            # Update job with results
+            if job.progress:
+                job.progress.fold_accuracies = results["fold_accuracies"]
+                job.progress.confusion_matrices = results["confusion_matrices"]
+
+            # Save model weights and logs
+            self._save_model_weights(job, results["model_state_dict"])
             self._save_training_results(job)
 
             job.status = TrainingStatus.COMPLETED
@@ -377,16 +329,8 @@ class TrainingManager:
             job.completed_at = datetime.now()
 
         finally:
-            self._notify_progress(job.job_id, job)
-
-    def _get_device(self, device_preference: str) -> torch.device:
-        """Get appropriate device for training"""
-        if device_preference == "auto":
-            return torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        elif device_preference == "cuda" and torch.cuda.is_available():
-            return torch.device("cuda")
-        else:
-            return torch.device("cpu")
+            if progress_callback:
+                progress_callback(job)
 
     def _load_and_preprocess_data(
         self, job: TrainingJob
@@ -576,134 +520,19 @@ class TrainingManager:
             print(f"Error loading dataset: {e}")
             return None, None
 
-    def _set_reproducibility(self):
-        """Set random seeds for reproducibility"""
-        SEED = 42
-        np.random.seed(SEED)
-        torch.manual_seed(SEED)
-        if torch.cuda.is_available():
-            torch.cuda.manual_seed_all(SEED)
-            torch.backends.cudnn.deterministic = True
-            torch.backends.cudnn.benchmark = False
-
-    def _run_cross_validation(
-        self, job: TrainingJob, X: np.ndarray, y: np.ndarray, device: torch.device
-    ):
-        """Run configurable cross-validation training with spectroscopy metrics"""
-        config = job.config
-
-        # Apply data augmentation if enabled
-        if config.enable_augmentation:
-            X, y = augment_spectral_data(
-                X, y, noise_level=config.noise_level, augmentation_factor=2
-            )
-
-        # Get appropriate CV splitter
-        cv_splitter = get_cv_splitter(config.cv_strategy, config.num_folds)
-
-        fold_accuracies = []
-        confusion_matrices = []
-        spectroscopy_metrics = []
-
-        for fold, (train_idx, val_idx) in enumerate(cv_splitter.split(X, y), 1):
-            job.progress.current_fold = fold
-            job.progress.current_epoch = 0
-
-            # Prepare data
-            X_train, X_val = X[train_idx], X[val_idx]
-            y_train, y_val = y[train_idx], y[val_idx]
-
-            train_loader = DataLoader(
-                TensorDataset(
-                    torch.tensor(X_train, dtype=torch.float32),
-                    torch.tensor(y_train, dtype=torch.long),
-                ),
-                batch_size=config.batch_size,
-                shuffle=True,
-            )
-            val_loader = DataLoader(
-                TensorDataset(
-                    torch.tensor(X_val, dtype=torch.float32),
-                    torch.tensor(y_val, dtype=torch.long),
-                ),
-                batch_size=config.batch_size,
-                shuffle=False,
-            )
-
-            # Initialize model
-            model = build_model(config.model_name, config.target_len).to(device)
-            optimizer = torch.optim.Adam(model.parameters(), lr=config.learning_rate)
-            criterion = nn.CrossEntropyLoss()
-
-            # Training loop
-            for epoch in range(config.epochs):
-                job.progress.current_epoch = epoch + 1
-                model.train()
-                running_loss = 0.0
-                correct = 0
-                total = 0
-
-                for inputs, labels in train_loader:
-                    inputs = inputs.unsqueeze(1).to(device)
-                    labels = labels.to(device)
-
-                    optimizer.zero_grad()
-                    outputs = model(inputs)
-                    loss = criterion(outputs, labels)
-                    loss.backward()
-                    optimizer.step()
-
-                    running_loss += loss.item()
-                    _, predicted = torch.max(outputs.data, 1)
-                    total += labels.size(0)
-                    correct += (predicted == labels).sum().item()
-
-                job.progress.current_loss = running_loss / len(train_loader)
-                job.progress.current_accuracy = correct / total
-
-                self._notify_progress(job.job_id, job)
-
-            # Validation with comprehensive metrics
-            model.eval()
-            val_predictions = []
-            val_true = []
-            val_probabilities = []
-
-            with torch.no_grad():
-                for inputs, labels in val_loader:
-                    inputs = inputs.unsqueeze(1).to(device)
-                    outputs = model(inputs)
-                    probabilities = torch.softmax(outputs, dim=1)
-                    _, predicted = torch.max(outputs, 1)
-
-                    val_predictions.extend(predicted.cpu().numpy())
-                    val_true.extend(labels.numpy())
-                    val_probabilities.extend(probabilities.cpu().numpy())
-
-            # Calculate standard metrics
-            fold_accuracy = accuracy_score(val_true, val_predictions)
-            fold_cm = confusion_matrix(val_true, val_predictions).tolist()
-
-            # Calculate spectroscopy-specific metrics
-            val_probabilities = np.array(val_probabilities)
-            spectro_metrics = calculate_spectroscopy_metrics(
-                np.array(val_true), np.array(val_predictions), val_probabilities
-            )
-
-            fold_accuracies.append(fold_accuracy)
-            confusion_matrices.append(fold_cm)
-            spectroscopy_metrics.append(spectro_metrics)
-
-            # Save best model weights (from last fold for now)
-            if fold == config.num_folds:
-                torch.save(model.state_dict(), job.weights_path)
-
-        job.progress.fold_accuracies = fold_accuracies
-        job.progress.confusion_matrices = confusion_matrices
-        job.progress.spectroscopy_metrics = spectroscopy_metrics
+    def _save_model_weights(self, job: TrainingJob, model_state_dict: dict):
+        """Saves the model's state dictionary to a file."""
+        weights_dir = self.output_dir / "weights"
+        weights_dir.mkdir(exist_ok=True)
+        job.weights_path = str(weights_dir / f"{job.config.model_name}_model.pth")
+        torch.save(model_state_dict, job.weights_path)
 
     def _save_training_results(self, job: TrainingJob):
         """Save training results and logs with enhanced metrics"""
+        logs_dir = self.output_dir / "logs"
+        logs_dir.mkdir(exist_ok=True)
+        job.logs_path = str(logs_dir / f"{job.job_id}_log.json")
+
         # Calculate comprehensive summary metrics
         spectro_summary = {}
         if job.progress.spectroscopy_metrics:
@@ -744,17 +573,9 @@ class TrainingManager:
             "error_message": job.error_message,
         }
 
-        with open(job.logs_path, "w") as f:
-            json.dump(results, f, indent=2)
-
-    def _notify_progress(self, job_id: str, job: TrainingJob):
-        """Notify registered callbacks about progress updates"""
-        if job_id in self.progress_callbacks:
-            for callback in self.progress_callbacks[job_id]:
-                try:
-                    callback(job)
-                except Exception as e:
-                    print(f"Error in progress callback: {e}")
+        if job.logs_path:
+            with open(job.logs_path, "w") as f:
+                json.dump(results, f, indent=2)
 
     def get_job_status(self, job_id: str) -> Optional[TrainingJob]:
         """Get current status of a training job"""

@@ -11,6 +11,7 @@ import json
 import csv
 import io
 from pathlib import Path
+import hashlib
 
 from .preprocessing import preprocess_spectrum
 from .errors import ErrorHandler, safe_execute
@@ -35,7 +36,7 @@ def detect_file_format(filename: str, content: str) -> str:
         try:
             json.loads(content)
             return "json"
-        except:
+        except json.JSONDecodeError:
             pass
     elif suffix == ".csv":
         return "csv"
@@ -50,7 +51,7 @@ def detect_file_format(filename: str, content: str) -> str:
         try:
             json.loads(content)
             return "json"
-        except:
+        except json.JSONDecodeError:
             pass
 
     # Try CSV (look for commas in first few lines)
@@ -63,12 +64,7 @@ def detect_file_format(filename: str, content: str) -> str:
     return "txt"
 
 
-# /////////////////////////////////////////////////////
-
-
-def parse_json_spectrum(
-    content: str, filename: str = "unknown"
-) -> Tuple[np.ndarray, np.ndarray]:
+def parse_json_spectrum(content: str) -> Tuple[np.ndarray, np.ndarray]:
     """
     Parse spectrum data from JSON format.
 
@@ -79,7 +75,7 @@ def parse_json_spectrum(
     """
 
     try:
-        data = json.load(content)
+        data = json.loads(content)
 
         # Format 1: Object with arrays
         if isinstance(data, dict):
@@ -135,12 +131,9 @@ def parse_json_spectrum(
         )
 
     except json.JSONDecodeError as e:
-        raise ValueError(f"Invalid JSON format: {str(e)}")
+        raise ValueError(f"Invalid JSON format: {str(e)}") from e
     except Exception as e:
-        raise ValueError(f"Failed to parse JSON spectrum: {str(e)}")
-
-
-# /////////////////////////////////////////////////////
+        raise ValueError(f"Failed to parse JSON spectrum: {str(e)}") from e
 
 
 def parse_csv_spectrum(
@@ -208,10 +201,7 @@ def parse_csv_spectrum(
         return np.array(x_vals), np.array(y_vals)
 
     except Exception as e:
-        raise ValueError(f"Failed to parse CSV spectrum: {str(e)}")
-
-
-# /////////////////////////////////////////////////////
+        raise ValueError(f"Failed to parse CSV spectrum: {str(e)}") from e
 
 
 def parse_spectrum_data(
@@ -235,7 +225,7 @@ def parse_spectrum_data(
 
         # Parse based on detected/specified format
         if file_format == "json":
-            x, y = parse_json_spectrum(text_content, filename)
+            x, y = parse_json_spectrum(text_content)
         elif file_format == "csv":
             x, y = parse_csv_spectrum(text_content, filename)
         else:  # Default to TXT format
@@ -247,10 +237,7 @@ def parse_spectrum_data(
         return x, y
 
     except Exception as e:
-        raise ValueError(f"Failed to parse spectrum data: {str(e)}")
-
-
-# /////////////////////////////////////////////////////
+        raise ValueError(f"Failed to parse spectrum data: {str(e)}") from e
 
 
 def parse_txt_spectrum(
@@ -287,7 +274,7 @@ def parse_txt_spectrum(
                     f"Parsing {filename}",
                 )
 
-        except Exception as e:
+        except ValueError as e:
             ErrorHandler.log_warning(
                 f"Error parsing line {i+1}: '{line}'. Error: {e}",
                 f"Parsing {filename}",
@@ -300,9 +287,6 @@ def parse_txt_spectrum(
         )
 
     return np.array(x_vals), np.array(y_vals)
-
-
-# /////////////////////////////////////////////////////
 
 
 def validate_spectrum_data(x: np.ndarray, y: np.ndarray, filename: str) -> None:
@@ -330,9 +314,6 @@ def validate_spectrum_data(x: np.ndarray, y: np.ndarray, filename: str) -> None:
             f"Unusual wavenumber range: {min(x):.1f} - {max(x):.1f} cm⁻¹",
             f"Parsing {filename}",
         )
-
-
-# /////////////////////////////////////////////////////
 
 
 def process_single_file(
@@ -369,8 +350,11 @@ def process_single_file(
         )
 
         # 3. Run inference, passing modality
+        cache_key = hashlib.md5(
+            f"{y_resampled.tobytes()}{model_choice}".encode()
+        ).hexdigest()
         prediction, logits_list, probs, inference_time, logits = run_inference_func(
-            y_resampled, model_choice, modality=modality
+            y_resampled, model_choice, modality=modality, cache_key=cache_key
         )
 
         if prediction is None:
@@ -418,7 +402,7 @@ def process_single_file(
             "y_resampled": y_resampled,
         }
 
-    except Exception as e:
+    except ValueError as e:
         ErrorHandler.log_error(e, f"processing {filename}")
         return {
             "filename": filename,
@@ -501,7 +485,7 @@ def process_multiple_files(
                         },
                     )
 
-        except Exception as e:
+        except ValueError as e:
             ErrorHandler.log_error(e, f"reading file {uploaded_file.name}")
             results.append(
                 {

@@ -27,7 +27,8 @@ from modules.modern_ml_architecture import (
     ModernMLPipeline,
 )
 from modules.enhanced_data_pipeline import EnhancedDataPipeline
-from core_logic import load_model, parse_spectrum_data
+from core_logic import load_model
+from utils.multifile import parse_spectrum_data
 from models.registry import choices
 from config import TARGET_LEN
 

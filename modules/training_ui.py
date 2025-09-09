@@ -17,12 +17,8 @@ import json
 from datetime import datetime, timedelta
 
 from models.registry import choices as model_choices, get_model_info
-from utils.training_manager import (
-    get_training_manager,
-    TrainingConfig,
-    TrainingStatus,
-    TrainingJob,
-)
+from utils.training_manager import get_training_manager, TrainingJob
+from utils.training_types import TrainingConfig, TrainingStatus
 
 
 def render_training_tab():

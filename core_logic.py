@@ -10,7 +10,6 @@ import numpy as np
 import streamlit as st
 from pathlib import Path
 from config import SAMPLE_DATA_DIR
-from datetime import datetime
 from models.registry import build, choices
 
 
@@ -27,7 +26,7 @@ def label_file(filename: str) -> int:
 
 
 @st.cache_data
-def load_state_dict(_mtime, model_path):
+def load_state_dict(mtime, model_path):
     """Load state dict with mtime in cache key to detect file changes"""
     try:
         return torch.load(model_path, map_location="cpu")
@@ -61,6 +60,7 @@ def load_model(model_name):
                         model.load_state_dict(state_dict, strict=True)
                         model.eval()
                         weights_loaded = True
+                        break  # Exit loop after successful load
 
                 except (OSError, RuntimeError):
                     continue
@@ -88,7 +88,7 @@ def cleanup_memory():
 
 
 @st.cache_data
-def run_inference(y_resampled, model_choice, modality: str, _cache_key=None):
+def run_inference(y_resampled, model_choice, modality: str, cache_key=None):
     """Run model inference and cache results with performance tracking"""
     from utils.performance_tracker import get_performance_tracker, PerformanceMetrics
     from datetime import datetime
@@ -169,58 +169,3 @@ def get_sample_files():
     if sample_dir.exists():
         return sorted(list(sample_dir.glob("*.txt")))
     return []
-
-
-def parse_spectrum_data(raw_text):
-    """Parse spectrum data from text with robust error handling and validation"""
-    x_vals, y_vals = [], []
-
-    for line in raw_text.splitlines():
-        line = line.strip()
-        if not line or line.startswith("#"):  # Skip empty lines and comments
-            continue
-
-        try:
-            # Handle different separators
-            parts = line.replace(",", " ").split()
-            numbers = [
-                p
-                for p in parts
-                if p.replace(".", "", 1)
-                .replace("-", "", 1)
-                .replace("+", "", 1)
-                .isdigit()
-            ]
-
-            if len(numbers) >= 2:
-                x, y = float(numbers[0]), float(numbers[1])
-                x_vals.append(x)
-                y_vals.append(y)
-
-        except ValueError:
-            # Skip problematic lines but don't fail completely
-            continue
-
-    if len(x_vals) < 10:  # Minimum reasonable spectrum length
-        raise ValueError(
-            f"Insufficient data points: {len(x_vals)}. Need at least 10 points."
-        )
-
-    x = np.array(x_vals)
-    y = np.array(y_vals)
-
-    # Check for NaNs
-    if np.any(np.isnan(x)) or np.any(np.isnan(y)):
-        raise ValueError("Input data contains NaN values")
-
-    # Check monotonic increasing x
-    if not np.all(np.diff(x) > 0):
-        raise ValueError("Wavenumbers must be strictly increasing")
-
-    # Check reasonable range for Raman spectroscopy
-    if min(x) < 0 or max(x) > 10000 or (max(x) - min(x)) < 100:
-        raise ValueError(
-            f"Invalid wavenumber range: {min(x)} - {max(x)}. Expected ~400-4000 cm⁻¹ with span >100"
-        )
-
-    return x, y
