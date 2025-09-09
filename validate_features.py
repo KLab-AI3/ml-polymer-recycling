@@ -1,5 +1,5 @@
 """
-Simple validation test to verify POLYMEROS modules can be imported
+Simple validation test to verify ML Polymer Aging modules can be imported
 """
 
 import sys
@@ -11,7 +11,7 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 def test_imports():
     """Test that all new modules can be imported successfully"""
-    print("🧪 POLYMEROS Module Import Validation")
+    print("🧪 ML Polymer Aging Module Import Validation")
     print("=" * 50)
 
     modules_to_test = [
@@ -37,7 +37,7 @@ def test_imports():
 
     if passed == total:
         print("🎉 ALL MODULES IMPORTED SUCCESSFULLY!")
-        print("\n✅ Critical POLYMEROS features are ready:")
+        print("\n✅ Critical ML Polymer Aging features are ready:")
         print("  • Advanced Spectroscopy Integration (FTIR + Raman)")
         print("  • Modern ML Architecture (Transformers + Ensembles)")
         print("  • Enhanced Data Pipeline (Quality Control + Synthesis)")
@@ -111,7 +111,7 @@ def main():
 
     print("\n" + "=" * 50)
     if import_success and class_success:
-        print("🎉 POLYMEROS VALIDATION SUCCESSFUL!")
+        print("🎉 ML Polymer Aging VALIDATION SUCCESSFUL!")
         print("\n🚀 All critical features implemented and ready:")
         print("  ✅ FTIR integration (non-negotiable requirement)")
         print("  ✅ Multi-model implementation (non-negotiable requirement)")

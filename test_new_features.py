@@ -1,5 +1,5 @@
 """
-Test script to verify the new POLYMEROS features are working correctly
+Test script to verify the new ML Polymer Aging features are working correctly
 """
 
 import numpy as np
@@ -157,7 +157,7 @@ def test_database_functionality():
 
 def main():
     """Run all tests"""
-    print("🧪 POLYMEROS Feature Validation Tests")
+    print("🧪 ML Polymer Aging Feature Validation Tests")
     print("=" * 50)
 
     tests = [
@@ -178,7 +178,7 @@ def main():
     print(f"🎯 Test Results: {passed}/{total} tests passed")
 
     if passed == total:
-        print("🎉 ALL TESTS PASSED - POLYMEROS features are working correctly!")
+        print("🎉 ALL TESTS PASSED - ML Polymer Aging features are working correctly!")
         print("\n✅ Critical features validated:")
         print("  • FTIR integration and multi-modal spectroscopy")
         print("  • Modern ML architecture with transformers and ensembles")

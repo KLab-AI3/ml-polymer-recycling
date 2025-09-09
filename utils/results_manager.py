@@ -505,8 +505,8 @@ class ResultsManager:
             st.dataframe(df, use_container_width=True)
             with st.container(border=None, key="page-link-container"):
                 st.page_link(
-                    "pages/2_Dashboard.py",
-                    label="Inference Analysis Dashboard",
+                    "pages/3_Interactive_Dashboard.py",
+                    label="Interactive Batch Analysis Dashboard",
                     help="Dive deeper into your batch results.",
                     use_container_width=False,
                 )

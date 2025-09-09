@@ -1,3 +1,4 @@
+# In 2_Enhanced_Analysis.py
 """
 Enhanced Analysis Page
 Advanced multi-modal spectroscopy analysis with modern ML architecture
@@ -10,8 +11,6 @@ import matplotlib.pyplot as plt
 from pathlib import Path
 import io
 from PIL import Image
-
-# Import POLYMEROS components
 import sys
 import os
 
@@ -71,12 +70,17 @@ def load_enhanced_model(model_name: str):
         return False
     except Exception as e:
         st.error(f"Error loading model: {e}")
+        st.error("Please check the model name and ensure the model file is accessible.")
+        st.error("Detailed traceback has been logged for debugging.")
+        import traceback
+
+        traceback.print_exc()
         return False
 
 
 def render_enhanced_file_upload():
     """Render enhanced file upload with metadata extraction"""
-    st.header("📁 Enhanced Spectrum Analysis")
+    st.subheader("Deeper Analysis on Spectrum  with AI Insights")
 
     uploaded_file = st.file_uploader(
         "Upload spectrum file (.txt)",
@@ -101,7 +105,7 @@ def render_enhanced_file_upload():
 
             # Get data quality assessment
             data_manager = st.session_state.data_manager
-            quality_score = data_manager._assess_data_quality(y_data)
+            quality_score = data_manager.assess_data_quality(y_data)
             spectrum.metadata.data_quality_score = quality_score
 
             # Display quality assessment
@@ -384,10 +388,10 @@ def render_data_provenance():
 def main():
     """Main enhanced analysis interface"""
     st.set_page_config(
-        page_title="POLYMEROS Enhanced Analysis", page_icon="🔬", layout="wide"
+        page_title="ML Polymer Enhanced Analysis", page_icon="🔬", layout="wide"
     )
 
-    st.title("🔬 POLYMEROS Enhanced Analysis")
+    st.title("Enhanced Spectrum Analysis")
     st.markdown("**Transparent AI with Explainability and Hypothesis Generation**")
 
     # Initialize session

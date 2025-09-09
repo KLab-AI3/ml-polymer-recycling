@@ -1,5 +1,5 @@
 """
-Test suite for POLYMEROS enhanced components
+Test suite for ML Polymer Aging enhanced components
 """
 
 import sys
@@ -133,7 +133,7 @@ def test_educational_framework():
 
 def run_all_tests():
     """Run all component tests"""
-    print("Starting POLYMEROS Component Tests...\n")
+    print("Starting ML Polymer Aging Component Tests...\n")
 
     tests = [
         test_enhanced_data_manager,
@@ -153,7 +153,7 @@ def run_all_tests():
     print(f"Tests completed: {passed}/{len(tests)} passed")
 
     if passed == len(tests):
-        print("🎉 All POLYMEROS components working correctly!")
+        print("🎉 All ML Polymer Aging components working correctly!")
     else:
         print("⚠️ Some components need attention")
 
