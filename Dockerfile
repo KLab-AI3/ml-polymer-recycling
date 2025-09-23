@@ -1,21 +1,6 @@
-# Stage 1: Build React frontend
-FROM node:18-slim as frontend-builder
-WORKDIR /app/frontend
-COPY frontend/package*.json ./
-RUN npm ci
-COPY frontend/ ./
-RUN npm run build
-
-# Stage 2: Backend and final image
 FROM python:3.12-slim
 
-# Set up Hugging Face Spaces user requirements
-RUN useradd -m -u 1000 user
-USER user
-ENV HOME=/home/user PATH=/home/user/.local/bin:$PATH
-WORKDIR $HOME/app
-
-# Install system dependencies
+# Install system dependencies as root
 RUN apt-get update && apt-get install -y \
     build-essential \
     curl \
@@ -24,12 +9,46 @@ RUN apt-get update && apt-get install -y \
     gfortran \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy backend and requirements
-COPY --chown=user backend/ ./backend/
-COPY --chown=user requirements.txt ./
+# Set up Hugging Face Spaces user requirements
+RUN useradd -m -u 1000 user
+ENV HOME=/home/user PATH=/home/user/.local/bin:$PATH
+WORKDIR $HOME/app
 
-# Install Python dependencies
+# Build React frontend in a separate stage
+FROM node:18-slim as frontend-builder
+WORKDIR /app/frontend
+
+# Copy only package.json and package-lock.json first for caching
+COPY frontend/package*.json ./
+RUN npm ci
+
+# Now copy the rest of the frontend source
+COPY frontend/ ./
+RUN npm run build
+
+# Backend stage
+FROM python:3.12-slim
+
+# Install system dependencies as root
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    curl \
+    git \
+    libopenblas-dev \
+    gfortran \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN useradd -m -u 1000 user
+ENV HOME=/home/user PATH=/home/user/.local/bin:$PATH
+WORKDIR $HOME/app
+USER user
+
+# Copy only requirements.txt first for caching
+COPY --chown=user requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy backend code
+COPY --chown=user backend/ ./backend/
 
 # Copy React build from builder stage
 COPY --chown=user --from=frontend-builder /app/frontend/build ./frontend/dist
