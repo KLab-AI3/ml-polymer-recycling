@@ -17,7 +17,7 @@ from datetime import datetime
 import uuid
 
 from .config import TARGET_LEN, LABEL_MAP
-from models.registry import build, choices, get_model_info
+from backend.models.registry import build, choices, get_model_info
 from backend.utils.preprocessing import (
     preprocess_spectrum,
     validate_spectrum_modality,

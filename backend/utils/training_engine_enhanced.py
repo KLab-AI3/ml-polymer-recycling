@@ -27,7 +27,7 @@ from typing import Dict, Any, Optional, Callable
 from backend.utils.preprocessing_fixed import SpectrumPreprocessor, load_data_for_cv
 from backend.utils.seeds import set_global_seeds, create_fold_seeds
 from utils.training_types import TrainingConfig, get_cv_splitter
-from models.registry import build as build_model
+from backend.models.registry import build as build_model
 
 class EarlyStoppingCallback:
     """Early stopping callback to prevent overfitting."""

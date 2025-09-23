@@ -10,7 +10,7 @@ import torch
 from typing import Dict, Any, List, Optional
 from fastapi import HTTPException
 from backend.models import SpectrumData, PredictionResult
-from models.registry import build as build_model
+from backend.models.registry import build as build_model
 from .preprocessing_fixed import SpectrumPreprocessor
 
 import os
