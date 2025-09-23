@@ -10,17 +10,25 @@ from backend.main import app
 import os
 import sys
 import subprocess
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse, JSONResponse
 from pathlib import Path
+from fastapi import FastAPI
+from pathlib import Path
+
+api = FastAPI()
+frontend_dist_path = Path(__file__).parent / "frontend" / "dist"
+
+
 
 # Add the project root to Python path
 project_root = Path(__file__).parent
 sys.path.insert(0, str(project_root))
 
 
+
 def ensure_frontend_built():
     """Ensure React frontend is built and available"""
-    frontend_dist_path = project_root / "frontend" / "dist"
-
     if not frontend_dist_path.exists():
         print("🔨 Frontend not found, building React application...")
         frontend_path = project_root / "frontend"
@@ -34,7 +42,8 @@ def ensure_frontend_built():
             ["npm", "run", "build"],
             cwd=frontend_path,
             capture_output=True,
-            text=True
+            text=True,
+            check=True
         )
 
         if build_result.returncode != 0:
@@ -49,8 +58,27 @@ def ensure_frontend_built():
                 shutil.rmtree(frontend_dist_path)
             shutil.move(str(build_path), str(frontend_dist_path))
             print("✅ Frontend built successfully")
-    else:
-        print("✅ Frontend already built")
+
+        frontend_dist_path = Path("frontend/dist")
+
+
+frontend_dist_path = Path(__file__).parent / "frontend" / "dist"
+if frontend_dist_path.exists() and frontend_dist_path.is_dir():
+    app.mount("/static", StaticFiles(directory=frontend_dist_path / "static"), name="static")
+
+    @app.get("/")
+    async def serve_frontend():
+        index_path = frontend_dist_path / "index.html"
+        if index_path.exists():
+            return FileResponse(index_path)
+        return JSONResponse(content={"error": "Frontend index.html not found"}, status_code=404)
+
+    @app.get("/{path:path}")
+    async def serve_frontend_routes(path: str):
+        index_path = frontend_dist_path / "index.html"
+        if index_path.exists():
+            return FileResponse(index_path)
+        return JSONResponse(content={"error": "Frontend index.html not found"}, status_code=404)
 
 
 def main():

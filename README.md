@@ -1,9 +1,10 @@
 ---
-title: PolymerOS
-emoji: 😻
-colorFrom: blue
-colorTo: pink
+title: Polymer Aging ML (React + FastAPI)
+emoji: 🔬
+colorFrom: indigo
+colorTo: yellow
 sdk: docker
+app_port: 7860
 pinned: false
 license: apache-2.0
 ---
