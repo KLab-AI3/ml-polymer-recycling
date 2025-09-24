@@ -1,27 +1,38 @@
 """Performance benchmarking and monitoring for the backend API."""
 
-import time
 import logging
 import psutil
 import threading
 from typing import Dict, Any, Optional
 from datetime import datetime
 from pathlib import Path
-
+import os
+import tempfile
+import sys
 # Configure performance logger
 performance_logger = logging.getLogger('performance')
 performance_logger.setLevel(logging.INFO)
 
-# Create file handler for performance logs
-log_dir = Path("/tmp/logs")
-log_dir.mkdir(exist_ok=True)
-file_handler = logging.FileHandler(log_dir / "performance.log")
-file_handler.setLevel(logging.INFO)
+# Determine writable log directory (env override), fallback to temp dir
+tmp_base = Path(os.getenv("PERF_LOG_DIR", tempfile.gettempdir()))
+log_dir = tmp_base / "ml_polymer_logs"
 
-# Create formatter
-formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-file_handler.setFormatter(formatter)
-performance_logger.addHandler(file_handler)
+# Try to create and use a file handler; if that fails, fallback to stdout StreamHandler
+try:
+    log_dir.mkdir(parents=True, exist_ok=True)
+    file_handler = logging.FileHandler(log_dir / "performance.log", encoding="utf-8")
+    file_handler.setLevel(logging.INFO)
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    file_handler.setFormatter(formatter)
+    performance_logger.addHandler(file_handler)
+except Exception as e:
+    # Fallback to stdout so HF Spaces / container logs capture the output
+    stream_handler = logging.StreamHandler(sys.stdout)
+    stream_handler.setLevel(logging.INFO)
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    stream_handler.setFormatter(formatter)
+    performance_logger.addHandler(stream_handler)
+    performance_logger.warning("Could not create file handler for performance logs, using stdout: %s", e)
 
 class PerformanceBenchmark:
     """Context manager for benchmarking operations."""

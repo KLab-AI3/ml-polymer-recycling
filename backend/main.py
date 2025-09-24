@@ -136,15 +136,23 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# CORS middleware for React frontend
-# CORS: Allows requests from any origin.
-# For production, this should be replaced with a specific list of allowed origins.
 # !! CRITICAL: Review CORS settings before deploying to production.====================||
-_allowed = os.getenv("CORS_ALLOWED_ORIGINS", "http://localhost:3000")
-origins = [o.strip() for o in _allowed.split(",") if o.strip()]
+# Configure CORS: allow origins via envvar or default to localhost dev + wildcard for HF.
+_allowed = os.getenv("CORS_ALLOWED_ORIGINS", "http://localhost:3000,*")
+origins = []
+for o in [s.strip() for s in _allowed.split(",") if s.strip()]:
+    # support '*' or explicit origins
+    origins.append(o)
+
+# If '*' present, allow_origins must be ["*"]
+if "*" in origins:
+    allow_origins = ["*"]
+else:
+    allow_origins = origins
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins or ["http://localhost:3000"],
+    allow_origins=allow_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

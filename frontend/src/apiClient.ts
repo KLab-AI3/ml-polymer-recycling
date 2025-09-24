@@ -1,104 +1,103 @@
-import { components, operations } from './types/api';
+import { components, operations } from "./types/api";
 
 // Type aliases for better readability
-export type SpectrumData = components['schemas']['SpectrumData'];
-export type PredictionResult = components['schemas']['PredictionResult'];
-export type BatchPredictionResult = components['schemas']['BatchPredictionResult'];
-export type ComparisonResult = components['schemas']['ComparisonResult'];
-export type ModelInfo = components['schemas']['ModelInfo'];
-export type SystemInfo = components['schemas']['SystemInfo'];
-export type AnalysisRequest = components['schemas']['AnalysisRequest'];
-export type BatchAnalysisRequest = components['schemas']['BatchAnalysisRequest'];
-export type ComparisonRequest = components['schemas']['ComparisonRequest'];
+export type SpectrumData = components["schemas"]["SpectrumData"];
+export type PredictionResult = components["schemas"]["PredictionResult"];
+export type BatchPredictionResult =
+  components["schemas"]["BatchPredictionResult"];
+export type ComparisonResult = components["schemas"]["ComparisonResult"];
+export type ModelInfo = components["schemas"]["ModelInfo"];
+export type SystemInfo = components["schemas"]["SystemInfo"];
+export type AnalysisRequest = components["schemas"]["AnalysisRequest"];
+export type BatchAnalysisRequest =
+  components["schemas"]["BatchAnalysisRequest"];
+export type ComparisonRequest = components["schemas"]["ComparisonRequest"];
 
 // API Response types
 type HealthResponse = { status: string; timestamp: string };
 
 export class ApiClient {
-  private baseUrl: string;
-
-  constructor(baseUrl: string = 'http://localhost:8000') {
-    this.baseUrl = baseUrl;
+  private getBaseUrl(): string {
+    // In local dev, frontend served at localhost:3000, backend at localhost:8000.
+    // In deployed HF Spaces, use relative paths (same origin).
+    if (
+      typeof window !== "undefined" &&
+      window.location.hostname === "localhost"
+    ) {
+      return "http://localhost:8000";
+    }
+    // Default: relative path so requests go to the same origin (HF Space)
+    return "";
   }
 
   private async request<T>(
     endpoint: string,
     options: RequestInit = {}
   ): Promise<T> {
-    const url = `${this.baseUrl}${endpoint}`;
-
-    const config: RequestInit = {
-      headers: {
-        'Content-Type': 'application/json',
-        ...options.headers,
-      },
+    const base = this.getBaseUrl();
+    const url = endpoint.startsWith("/")
+      ? `${base}${endpoint}`
+      : `${base}/${endpoint}`;
+    const res = await fetch(url, {
+      headers: { "Content-Type": "application/json" },
       ...options,
-    };
-
-    const response = await fetch(url, config);
-
-    if (!response.ok) {
-      let errorMessage = `HTTP error! status: ${response.status}`;
-      try {
-        const errorData = await response.json();
-        errorMessage = errorData.error || errorMessage;
-      } catch {
-        // If error response is not JSON, use default message
-      }
-      throw new Error(errorMessage);
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`HTTP ${res.status}: ${text}`);
     }
-
-    return response.json();
+    return (await res.json()) as T;
   }
-
   // Health endpoints
   async health(): Promise<HealthResponse> {
-    return this.request<HealthResponse>('/api/v1/health');
+    return this.request<HealthResponse>("/api/v1/health");
   }
 
   // System information
   async getSystemInfo(): Promise<SystemInfo> {
-    return this.request<SystemInfo>('/api/v1/system');
+    return this.request<SystemInfo>("/api/v1/system");
   }
 
   // Model management
   async getModels(): Promise<ModelInfo[]> {
-    return this.request<ModelInfo[]>('/api/v1/models');
+    return this.request<ModelInfo[]>("/api/v1/models");
   }
 
   // Spectrum analysis
   async analyzeSpectrum(request: AnalysisRequest): Promise<PredictionResult> {
-    return this.request<PredictionResult>('/api/v1/analyze', {
-      method: 'POST',
+    return this.request<PredictionResult>("/api/v1/analyze", {
+      method: "POST",
       body: JSON.stringify(request),
     });
   }
 
-  async analyzeBatch(request: BatchAnalysisRequest): Promise<BatchPredictionResult> {
-    return this.request<BatchPredictionResult>('/api/v1/analyze/batch', {
-      method: 'POST',
+  async analyzeBatch(
+    request: BatchAnalysisRequest
+  ): Promise<BatchPredictionResult> {
+    return this.request<BatchPredictionResult>("/api/v1/analyze/batch", {
+      method: "POST",
       body: JSON.stringify(request),
     });
   }
 
   async compareModels(request: ComparisonRequest): Promise<ComparisonResult> {
-    return this.request<ComparisonResult>('/api/v1/compare', {
-      method: 'POST',
+    return this.request<ComparisonResult>("/api/v1/compare", {
+      method: "POST",
       body: JSON.stringify(request),
     });
   }
 
   // Explainability
   async explainSpectrum(request: AnalysisRequest): Promise<any> {
-    return this.request<any>('/api/v1/explain', {
-      method: 'POST',
+    return this.request<any>("/api/v1/explain", {
+      method: "POST",
       body: JSON.stringify(request),
     });
   }
 
   async explainBatch(request: BatchAnalysisRequest): Promise<any> {
-    return this.request<any>('/api/v1/explain/batch', {
-      method: 'POST',
+    return this.request<any>("/api/v1/explain/batch", {
+      method: "POST",
       body: JSON.stringify(request),
     });
   }
@@ -106,10 +105,10 @@ export class ApiClient {
   // File upload
   async uploadSpectrum(file: File): Promise<SpectrumData> {
     const formData = new FormData();
-    formData.append('file', file);
+    formData.append("file", file);
 
-    return this.request<SpectrumData>('/api/v1/upload', {
-      method: 'POST',
+    return this.request<SpectrumData>("/api/v1/upload", {
+      method: "POST",
       body: formData,
       headers: {}, // Remove Content-Type to let browser set it for FormData
     });
@@ -150,11 +149,16 @@ export const useApiClient = () => {
     health: () => apiClient.health(),
     getSystemInfo: () => apiClient.getSystemInfo(),
     getModels: () => apiClient.getModels(),
-    analyzeSpectrum: (request: AnalysisRequest) => apiClient.analyzeSpectrum(request),
-    analyzeBatch: (request: BatchAnalysisRequest) => apiClient.analyzeBatch(request),
-    compareModels: (request: ComparisonRequest) => apiClient.compareModels(request),
-    explainSpectrum: (request: AnalysisRequest) => apiClient.explainSpectrum(request),
-    explainBatch: (request: BatchAnalysisRequest) => apiClient.explainBatch(request),
+    analyzeSpectrum: (request: AnalysisRequest) =>
+      apiClient.analyzeSpectrum(request),
+    analyzeBatch: (request: BatchAnalysisRequest) =>
+      apiClient.analyzeBatch(request),
+    compareModels: (request: ComparisonRequest) =>
+      apiClient.compareModels(request),
+    explainSpectrum: (request: AnalysisRequest) =>
+      apiClient.explainSpectrum(request),
+    explainBatch: (request: BatchAnalysisRequest) =>
+      apiClient.explainBatch(request),
     uploadSpectrum: (file: File) => apiClient.uploadSpectrum(file),
   };
 };
