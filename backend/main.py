@@ -254,7 +254,36 @@ async def get_system_info():
 @app.get("/api/v1/models", response_model=List[ModelInfo])
 async def get_models():
     """Get list of available models"""
-    return ml_service.get_available_models()
+    print("🔍 Fetching available models...")
+    try:
+        # 1. Try preferred, structured method
+        if hasattr(ml_service, 'get_available_models'):
+            print("... using ml_service.get_available_models()")
+            models = ml_service.get_available_models()
+            return models
+        # 2. Try other common attributes as fallbacks
+        elif hasattr(ml_service, 'get_registered_models'):
+            print("... using ml_service.get_registered_models()")
+            return ml_service.get_registered_models()
+        elif hasattr(ml_service, 'available_models'):
+            print("... using ml_service.available_models")
+            return ml_service.available_models
+    except Exception as e:
+        print(f"⚠️ Could not get models from ml_service, falling back. Error: {e}")
+
+    # 3. Fallback: Scan filesystem if service methods fail
+    print("... falling back to filesystem scan.")
+    models = []
+    weights_dir = Path("backend/models/weights")
+    if weights_dir.exists():
+        for pth_file in weights_dir.glob("*.pth"):
+            model_name = pth_file.stem.replace("_model", "")
+            models.append({
+                "name": model_name,
+                "description": f"Model '{model_name}' loaded from file.",
+                "available": True
+            })
+    return JSONResponse(content=models)
 
 
 @app.post("/api/v1/analyze", response_model=PredictionResult)
