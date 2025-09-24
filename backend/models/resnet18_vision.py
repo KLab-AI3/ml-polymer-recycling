@@ -41,6 +41,10 @@ def _make_layer(block: Callable[..., nn.Module], in_planes: int, planes: int, bl
 class ResNet18Vision(nn.Module):
     def __init__(self, input_length: int = 500, num_classes: int = 2):
         super().__init__()
+
+        self.input_length = int(input_length)
+        self.num_classes = int(num_classes)
+
         # 1D stem
         self.conv1 = nn.Conv1d(1, 64, kernel_size=7, stride=2, padding=3, bias=False)
         self.bn1   = nn.BatchNorm1d(64)

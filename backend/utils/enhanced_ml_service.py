@@ -63,9 +63,20 @@ class EnhancedMLService:
                     status_code=400,
                     detail=f"Model {model_name} not loaded or weights not found"
                 )
-            # Create preprocessor for this model
+
+            # Determine model input length robustly: prefer model attribute,
+            # fallback to registry/spec, then TARGET_LEN
+            input_len = getattr(model_instance, 'input_length', None)
+            if input_len is None:
+                try:
+                    spec_info = registry_spec(model_name)
+                    input_len = int(spec_info.get("input_length", TARGET_LEN))
+                except Exception:
+                    input_len = TARGET_LEN
+
+            # Create preprocessor for this model (use resolved input_len)
             preprocessor = SpectrumPreprocessor(
-                target_len=model_instance.input_length,
+                target_len=input_len,
                 do_baseline=True,
                 do_smooth=True,
                 do_normalize=True,
