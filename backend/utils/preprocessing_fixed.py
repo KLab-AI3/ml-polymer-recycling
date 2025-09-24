@@ -16,8 +16,7 @@ from typing import Tuple, Optional, Dict, Any
 # Add parent directory to path for imports
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 
-from scripts.discover_raman_files import list_txt_files, label_file
-from scripts.plot_spectrum import load_spectrum
+from .raman_util import list_txt_files, label_file, load_spectrum
 from backend.utils.preprocessing import preprocess_spectrum, TARGET_LENGTH
 
 class SpectrumPreprocessor:

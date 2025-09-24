@@ -24,10 +24,10 @@ from sklearn.metrics import confusion_matrix, accuracy_score, classification_rep
 from typing import Dict, Any, Optional, Callable
 
 
-from backend.utils.preprocessing_fixed import SpectrumPreprocessor, load_data_for_cv
-from backend.utils.seeds import set_global_seeds, create_fold_seeds
-from utils.training_types import TrainingConfig, get_cv_splitter
-from backend.models.registry import build as build_model
+from .utils.preprocessing_fixed import SpectrumPreprocessor, load_data_for_cv
+from .utils.seeds import set_global_seeds, create_fold_seeds
+from .training_types import TrainingConfig, get_cv_splitter
+from backend.registry import build as build_model
 
 class EarlyStoppingCallback:
     """Early stopping callback to prevent overfitting."""

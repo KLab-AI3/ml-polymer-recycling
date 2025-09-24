@@ -27,7 +27,7 @@ from scipy.spatial.distance import euclidean
 
 # Add project-specific imports
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-from backend.models.registry import choices as model_choices, build as build_model
+from backend.registry import choices as model_choices, build as build_model
 from utils.training_engine import TrainingEngine
 from utils.training_types import (
     TrainingConfig,

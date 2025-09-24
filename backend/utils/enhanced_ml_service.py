@@ -9,9 +9,9 @@ import numpy as np
 import torch
 from typing import Dict, Any, List, Optional
 from fastapi import HTTPException
-from backend.models import SpectrumData, PredictionResult
+from backend.pydantic_models import SpectrumData, PredictionResult
 from backend.models.registry import build as build_model
-from .preprocessing_fixed import SpectrumPreprocessor
+from backend.utils.preprocessing_fixed import SpectrumPreprocessor
 
 import os
 
@@ -279,12 +279,12 @@ enhanced_ml_service = EnhancedMLService()
 def initialize_enhanced_service():
     """Initialize the enhanced ML service with available models."""
     model_paths = [
-        ("figure2", "outputs/figure2_model.pth"),
-        ("resnet", "outputs/resnet_model.pth"),
-        ("resnet18vision", "outputs/resnet18vision_model.pth"),
-        ("efficient_cnn", "outputs/efficient_cnn_model.pth"),
-        ("enhanced_cnn", "outputs/enhanced_cnn_model.pth"),
-        ("hybrid_net", "outputs/hybrid_net_model.pth"),
+        ("figure2", "backend/models/weights/figure2_model.pth"),
+        ("resnet", "backend/models/weights/resnet_model.pth"),
+        ("resnet18vision", "backend/models/weights/resnet18vision_model.pth"),
+        ("efficient_cnn", "backend/models/weights/efficient_cnn_model.pth"),
+        ("enhanced_cnn", "backend/models/weights/enhanced_cnn_model.pth"),
+        ("hybrid_net", "backend/models/weights/hybrid_net_model.pth"),
     ]
 
     for model_name, model_path in model_paths:

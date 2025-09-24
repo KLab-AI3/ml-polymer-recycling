@@ -1,9 +1,9 @@
 # models/registry.py
 from typing import Callable, Dict, List, Any
-from models.figure2_cnn import Figure2CNN
-from models.resnet_cnn import ResNet1D
-from models.resnet18_vision import ResNet18Vision
-from models.enhanced_cnn import EnhancedCNN, EfficientSpectralCNN, HybridSpectralNet
+from .figure2_cnn import Figure2CNN
+from .resnet_cnn import ResNet1D
+from .resnet18_vision import ResNet18Vision
+from .enhanced_cnn import EnhancedCNN, EfficientSpectralCNN, HybridSpectralNet
 
 # Internal registry of model builders keyed by short name.
 _REGISTRY: Dict[str, Callable[[int], object]] = {
@@ -140,7 +140,7 @@ def build_multiple(names: List[str], input_length: int) -> Dict[str, Any]:
 
 
 def register_model(
-    name: str, builder: Callable[[int], object], spec: Dict[str, Any]
+    name: str, builder: Callable[[int], object], model_spec: Dict[str, Any]
 ) -> None:
     """Dynamically register a new model."""
     if name in _REGISTRY:
@@ -148,7 +148,7 @@ def register_model(
     if not callable(builder):
         raise TypeError("Builder must be a callable that accepts an integer argument.")
     _REGISTRY[name] = builder
-    _MODEL_SPECS[name] = spec
+    _MODEL_SPECS[name] = model_spec
 
 
 def spec(name: str):
@@ -204,8 +204,8 @@ def get_model_capabilities(name: str) -> Dict[str, Any]:
     if name not in _MODEL_SPECS:
         raise KeyError(f"Unknown model '{name}'")
 
-    spec = _MODEL_SPECS[name].copy()
-    spec.update(
+    model_spec = _MODEL_SPECS[name].copy()
+    model_spec.update(
         {
             "available": True,
             "status": "active",
@@ -218,7 +218,7 @@ def get_model_capabilities(name: str) -> Dict[str, Any]:
             },
         }
     )
-    return spec
+    return model_spec
 
 
 __all__ = [

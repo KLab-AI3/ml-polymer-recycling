@@ -22,7 +22,7 @@ from .training_types import (
     get_cv_splitter,
     augment_spectral_data,
 )
-from backend.models.registry import build as build_model
+from backend.registry import build as build_model
 
 
 class TrainingEngine:

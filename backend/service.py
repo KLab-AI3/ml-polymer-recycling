@@ -18,14 +18,13 @@ import uuid
 
 from .config import TARGET_LEN, LABEL_MAP
 from backend.models.registry import build, choices, get_model_info
+from backend.utils.performance  import log_model_performance
 from backend.utils.preprocessing import (
     preprocess_spectrum,
     validate_spectrum_modality,
     MODALITY_PARAMS
 )
-from .utils.confidence import calculate_softmax_confidence
-from .utils.performance import log_model_performance, PerformanceBenchmark
-from backend.models import (
+from .pydantic_models import (
     SpectrumData,
     PredictionResult,
     PreprocessingMetadata,

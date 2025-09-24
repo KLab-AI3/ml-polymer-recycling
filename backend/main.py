@@ -24,7 +24,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.exceptions import RequestValidationError
 from contextlib import asynccontextmanager
 
-from backend.models import (
+from .pydantic_models import (
     SpectrumData,
     AnalysisRequest,
     BatchAnalysisRequest,
@@ -42,9 +42,9 @@ from backend.models import (
 from backend.service import ml_service, MLServiceError
 from backend.utils.enhanced_ml_service import enhanced_ml_service
 
-from scripts.prepare_data import prepare_data as run_prepare_data
-from scripts.train import train as run_training_job
-from .utils.multifile import parse_spectrum_data
+from backend.utils.prepare_data import prepare_data as run_prepare_data
+from backend.utils.train import train as run_training_job
+from backend.utils.multifile import parse_spectrum_data
 
 
 @asynccontextmanager
@@ -82,7 +82,7 @@ async def lifespan(app: FastAPI):
 # --- In-memory DB for Training Jobs ---
 training_jobs: Dict[str, Dict[str, Any]] = {}
 
-# --- Pydantic Models for Training API ---
+# --- Pydantic Models Building Blocks for Training API ---
 
 
 class PrepareDataRequest(BaseModel):
@@ -115,7 +115,7 @@ class TrainingJobStatus(BaseModel):
     current_epoch: int = 0
     mlflow_run_id: Optional[str] = None
     metrics: Dict[str, list] = Field(default_factory=lambda: {
-                                    "train_loss": [], "val_loss": []})
+        "train_loss": [], "val_loss": []})
     error: Optional[str] = None
     created_at: str
 
@@ -312,6 +312,7 @@ async def explain_batch_spectra(request: BatchAnalysisRequest):
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
 # ** fix-429e36db-a89a-42f9-8b64-9bdfd16b01bc
+
 
 @app.post("/api/v1/analyze/batch", response_model=BatchPredictionResult)
 async def analyze_batch(request: BatchAnalysisRequest):

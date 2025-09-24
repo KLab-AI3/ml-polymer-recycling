@@ -25,23 +25,26 @@ performance_logger.addHandler(file_handler)
 
 class PerformanceBenchmark:
     """Context manager for benchmarking operations."""
-    
+
     def __init__(self, operation_name: str, metadata: Optional[Dict[str, Any]] = None):
         self.operation_name = operation_name
         self.metadata = metadata or {}
         self.start_time = 0
         self.start_memory = 0
-        
+        self.duration = 0
+        self.memory_delta = 0
+        self.performance_data = {}
+
     def __enter__(self):
         self.start_time = time.time()
         self.start_memory = psutil.Process().memory_info().rss / 1024 / 1024  # MB
         return self
-        
+
     def __exit__(self, exc_type, exc_val, exc_tb):
         duration = time.time() - self.start_time
         end_memory = psutil.Process().memory_info().rss / 1024 / 1024  # MB
         memory_delta = end_memory - self.start_memory
-        
+
         # Log performance data
         perf_data = {
             "operation": self.operation_name,
@@ -52,15 +55,15 @@ class PerformanceBenchmark:
             "timestamp": datetime.utcnow().isoformat(),
             **self.metadata
         }
-        
+
         performance_logger.info(f"BENCHMARK: {perf_data}")
-        
+
         # Store in class for retrieval
         self.duration = duration
         self.memory_delta = memory_delta
         self.performance_data = perf_data
 
-def log_model_performance(model_name: str, inference_time: float, 
+def log_model_performance(model_name: str, inference_time: float,
                          preprocessing_time: float, total_time: float,
                          memory_usage: float, spectrum_length: int):
     """Log model inference performance metrics."""
@@ -68,13 +71,13 @@ def log_model_performance(model_name: str, inference_time: float,
         "operation": "model_inference",
         "model_name": model_name,
         "inference_time": round(inference_time, 4),
-        "preprocessing_time": round(preprocessing_time, 4), 
+        "preprocessing_time": round(preprocessing_time, 4),
         "total_time": round(total_time, 4),
         "memory_usage_mb": round(memory_usage, 2),
         "spectrum_length": spectrum_length,
         "timestamp": datetime.utcnow().isoformat()
     }
-    
+
     performance_logger.info(f"MODEL_PERF: {perf_data}")
 
 def get_system_performance():
