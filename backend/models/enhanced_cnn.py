@@ -7,7 +7,6 @@ Literature inspiration: SE-Net, ResNet, Inception.
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 
 
 class AttentionBlock1D(nn.Module):
@@ -259,6 +258,9 @@ class EfficientSpectralCNN(nn.Module):
     def __init__(self, input_length: int = 500, num_classes: int = 2):
         super().__init__()
 
+        self.input_length = int(input_length)
+        self.num_classes = int(num_classes)
+
         # Efficient feature extraction with depthwise separable convolutions
         self.features = nn.Sequential(
             # Initial convolution
@@ -335,6 +337,9 @@ class HybridSpectralNet(nn.Module):
 
     def __init__(self, input_length: int = 500, num_classes: int = 2):
         super().__init__()
+
+        self.input_length = int(input_length)
+        self.num_classes = int(num_classes)
 
         # CNN backbone
         self.cnn_backbone = nn.Sequential(

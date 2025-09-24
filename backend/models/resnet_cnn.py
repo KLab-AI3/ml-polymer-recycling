@@ -9,7 +9,7 @@ import torch.nn as nn
 
 
 class ResidualBlock1D(nn.Module):
-    """ 
+    """
     Basic 1-D residual block:
     Conv1d -> ReLU -> Conv1d (+ skip connection).
     If channel count changes, a 1x1 Conv aligns the skip path.
@@ -46,12 +46,15 @@ class ResidualBlock1D(nn.Module):
 
 
 class ResNet1D(nn.Module):
-    """ 
+    """
     Lightweight 1-D ResNet for Raman spectra (length 500, single channel).
     """
 
     def __init__(self, input_length: int = 500, num_classes: int = 2):
         super().__init__()
+
+        self.input_length = int(input_length)
+        self.num_classes = int(num_classes)
 
         # Three residual stages
         self.stage1 = ResidualBlock1D(1, 16)
