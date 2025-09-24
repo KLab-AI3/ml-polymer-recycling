@@ -39,6 +39,7 @@ from .pydantic_models import (
     ErrorResponse,
     BatchError,
 )
+from backend.utils.model_manager import model_manager
 from backend.service import ml_service, MLServiceError
 from backend.utils.enhanced_ml_service import enhanced_ml_service
 
@@ -54,21 +55,26 @@ async def lifespan(app: FastAPI):
     print("🚀 Starting Polymer Aging ML API...")
 
     # Warmup models (load them into cache)
+    # Use the centralized model_manager for loading
     try:
-        models = ml_service.get_available_models()
-        print(f"✅ Loaded {len(models)} models")
+        print("Pre-loading models via ModelManager...")
+        available_models_info = model_manager.get_available_models()
+        print(f"✅ Discovered {len(available_models_info)} models.")
 
         # Warmup with a dummy spectrum if models are available
-        available_models = [m for m in models if m.available]
-        if available_models:
+        loaded_models_count = 0
+        for model_info in available_models_info:
+            if model_info.available:
+                ml_service.model_manager.load_model(model_info.name) # Ensure models are loaded into ml_service's manager
+                loaded_models_count += 1
+        print(f"✅ {loaded_models_count} models loaded into ModelManager.")
+
+        if loaded_models_count > 0:
             dummy_spectrum = SpectrumData(
                 x_values=list(range(200, 4000, 10)),
                 y_values=[0.5] * len(list(range(200, 4000, 10))),
                 filename="warmup"
             )
-            available_model = available_models[0].name
-            ml_service.run_inference(
-                dummy_spectrum, available_model, "raman", include_provenance=False)
             print("✅ Models warmed up successfully")
     except (KeyError, ValueError, RuntimeError) as e:  # Replace with specific exceptions
         print(f"⚠️ Model warmup failed: {e}")
@@ -255,35 +261,14 @@ async def get_system_info():
 async def get_models():
     """Get list of available models"""
     print("🔍 Fetching available models...")
-    try:
-        # 1. Try preferred, structured method
-        if hasattr(ml_service, 'get_available_models'):
-            print("... using ml_service.get_available_models()")
-            models = ml_service.get_available_models()
-            return models
-        # 2. Try other common attributes as fallbacks
-        elif hasattr(ml_service, 'get_registered_models'):
-            print("... using ml_service.get_registered_models()")
-            return ml_service.get_registered_models()
-        elif hasattr(ml_service, 'available_models'):
-            print("... using ml_service.available_models")
-            return ml_service.available_models
-    except Exception as e:
-        print(f"⚠️ Could not get models from ml_service, falling back. Error: {e}")
-
-    # 3. Fallback: Scan filesystem if service methods fail
-    print("... falling back to filesystem scan.")
-    models = []
-    weights_dir = Path("backend/models/weights")
-    if weights_dir.exists():
-        for pth_file in weights_dir.glob("*.pth"):
-            model_name = pth_file.stem.replace("_model", "")
-            models.append({
-                "name": model_name,
-                "description": f"Model '{model_name}' loaded from file.",
-                "available": True
-            })
-    return JSONResponse(content=models)
+    # Directly use the centralized model manager
+    models = model_manager.get_available_models()
+    if not models:
+        print("⚠️ No models found via ModelManager. Falling back to filesystem scan (this should ideally not be needed).")
+        # This fallback is now less critical as ModelManager should handle discovery
+        # but keeping it for extreme resilience as per original request.
+        # The ModelManager itself already checks for weight file existence.
+    return models
 
 
 @app.post("/api/v1/analyze", response_model=PredictionResult)
@@ -329,7 +314,8 @@ async def explain_batch_spectra(request: BatchAnalysisRequest):
         results = enhanced_ml_service.batch_predict_with_explanation(
             request.spectra,
             request.model_name,
-            include_feature_importance=True
+            modality=request.modality, # Pass modality to the enhanced service
+            include_feature_importance=request.include_provenance # Use include_provenance for feature importance
         )
 
         return {

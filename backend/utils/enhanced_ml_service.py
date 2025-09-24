@@ -8,8 +8,8 @@ and improved prediction capabilities.
 import numpy as np
 import torch
 from typing import Dict, Any, List, Optional
-from fastapi import HTTPException
-from backend.pydantic_models import SpectrumData, PredictionResult
+from fastapi import HTTPException # Keep HTTPException for API errors
+from backend.pydantic_models import SpectrumData # PredictionResult is not directly returned by this service
 from backend.models.registry import build as build_model
 from backend.utils.preprocessing_fixed import SpectrumPreprocessor
 
@@ -23,55 +23,11 @@ class EnhancedMLService:
     """
 
     def __init__(self):
-        self.models = {}
-        self.preprocessors = {}
+        from backend.utils.model_manager import model_manager # Import here to avoid circular dependency
+        self.model_manager = model_manager
+        self._model_cache = {} # Local cache for loaded models (model, preprocessor)
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         print(f"✅ Enhanced ML Service initialized on {self.device}")
-
-    def load_model(self, model_name: str, model_path: str, target_len: int = 500):
-        """
-        Load a trained model for inference.
-
-        Args:
-            model_name (str): Name of the model architecture
-            model_path (str): Path to saved model weights
-            target_len (int): Expected input length
-        """
-        try:
-            # Build model architecture
-            model = build_model(model_name, target_len)
-
-            # Load weights
-            if os.path.exists(model_path):
-                model.load_state_dict(torch.load(model_path, map_location=self.device))
-                model.to(self.device)
-                model.eval()
-
-                self.models[model_name] = {
-                    'model': model,
-                    'target_len': target_len,
-                    'model_path': model_path
-                }
-
-                # Create corresponding preprocessor
-                self.preprocessors[model_name] = SpectrumPreprocessor(
-                    target_len=target_len,
-                    do_baseline=True,
-                    do_smooth=True,
-                    do_normalize=True
-                )
-
-                print(f"✅ Loaded model {model_name} from {model_path}")
-
-            else:
-                print(f"⚠️ Model weights not found at {model_path}")
-
-        except FileNotFoundError as e:
-            print(f"❌ Model file not found for {model_name}: {e}")
-        except RuntimeError as e:
-            print(f"❌ Torch error while loading model {model_name}: {e}")
-        except OSError as e:
-            print(f"❌ An error occurred while loading model {model_name}: {e}")
 
     def predict_with_explanation(
         self,
@@ -90,15 +46,26 @@ class EnhancedMLService:
         Returns:
             dict: Prediction results with explanations
         """
-        if model_name not in self.models:
+        if model_name not in self._model_cache:
+            # Attempt to load model via centralized manager if not in local cache
+            model_instance, weights_loaded, _ = self.model_manager.load_model(model_name)
+            if model_instance is None or not weights_loaded:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Model {model_name} not loaded or weights not found"
+                )
+            # Create preprocessor for this model
+            preprocessor = SpectrumPreprocessor(target_len=model_instance.input_length, do_baseline=True, do_smooth=True, do_normalize=True)
+            self._model_cache[model_name] = {'model': model_instance, 'preprocessor': preprocessor}
+
+        model_entry = self._model_cache.get(model_name)
+        if not model_entry: # Should not happen if previous block executed
             raise HTTPException(
                 status_code=400,
                 detail=f"Model {model_name} not loaded"
             )
-
-        model_info = self.models[model_name]
-        model = model_info['model']
-        preprocessor = self.preprocessors[model_name]
+        model = model_entry['model']
+        preprocessor = model_entry['preprocessor']
 
         try:
             # Preprocess input data
@@ -225,24 +192,15 @@ class EnhancedMLService:
         Get information about loaded models.
 
         Returns:
-            list: List of model information dictionaries
+            list: List of ModelInfo objects from the centralized manager.
         """
-        model_info = []
-        for model_name, info in self.models.items():
-            model_info.append({
-                'name': model_name,
-                'target_length': info['target_len'],
-                'model_path': info['model_path'],
-                'device': str(self.device),
-                'available': True
-            })
-
-        return model_info
+        return self.model_manager.get_available_models()
 
     def batch_predict_with_explanation(
         self,
         spectra: List[SpectrumData],
         model_name: str,
+        modality: str, # Add modality for preprocessor
         include_feature_importance: bool = True
     ) -> List[Dict[str, Any]]:
         """
@@ -251,6 +209,7 @@ class EnhancedMLService:
         Args:
             spectra (list): List of spectrum data
             model_name (str): Model to use
+            modality (str): Spectroscopy modality
             include_feature_importance (bool): Whether to include explanations
 
         Returns:
@@ -275,23 +234,33 @@ class EnhancedMLService:
 # Global enhanced service instance
 enhanced_ml_service = EnhancedMLService()
 
-# Load default models if available
+from backend.config import TARGET_LEN # Import TARGET_LEN for model loading
 def initialize_enhanced_service():
     """Initialize the enhanced ML service with available models."""
-    model_paths = [
-        ("figure2", "backend/models/weights/figure2_model.pth"),
-        ("resnet", "backend/models/weights/resnet_model.pth"),
-        ("resnet18vision", "backend/models/weights/resnet18vision_model.pth"),
-        ("efficient_cnn", "backend/models/weights/efficient_cnn_model.pth"),
-        ("enhanced_cnn", "backend/models/weights/enhanced_cnn_model.pth"),
-        ("hybrid_net", "backend/models/weights/hybrid_net_model.pth"),
-    ]
+    print("Initializing Enhanced ML Service models...")
+    # Iterate through all known models in the registry
+    for model_name in enhanced_ml_service.model_manager.choices():
+        try:
+            # Attempt to load each model via the centralized manager
+            model_instance, weights_loaded, _ = enhanced_ml_service.model_manager.load_model(model_name, TARGET_LEN)
+            if model_instance and weights_loaded:
+                # If successful, create and cache its preprocessor
+                preprocessor = SpectrumPreprocessor(
+                    target_len=TARGET_LEN,
+                    do_baseline=True,
+                    do_smooth=True,
+                    do_normalize=True
+                )
+                enhanced_ml_service._model_cache[model_name] = {
+                    'model': model_instance,
+                    'preprocessor': preprocessor
+                }
+                print(f"✅ Enhanced ML Service: Prepared model '{model_name}' with preprocessor.")
+            else:
+                print(f"⚠️ Enhanced ML Service: Model '{model_name}' not fully loaded or weights missing.")
+        except Exception as e:
+            print(f"❌ Enhanced ML Service: Error initializing model '{model_name}': {e}")
 
-    for model_name, model_path in model_paths:
-        if os.path.exists(model_path):
-            enhanced_ml_service.load_model(model_name, model_path)
-        else:
-            print(f"⚠️ Model weights not found: {model_path}")
 
 # Initialize on import
 initialize_enhanced_service()

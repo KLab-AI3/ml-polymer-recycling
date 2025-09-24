@@ -4,26 +4,25 @@ Backend service layer for ML inference.
 Extracts and preserves the current Streamlit application logic for FastAPI.
 Maintains scientific fidelity and deterministic outputs.
 """
-
-import os
 import time
 import gc
+from typing import Tuple, List
+from pathlib import Path
+from datetime import datetime
+import psutil
 import torch
 import torch.nn.functional as F
 import numpy as np
-from pathlib import Path
-from typing import Tuple, List, Dict, Any, Optional
-from datetime import datetime
-import uuid
 
-from .config import TARGET_LEN, LABEL_MAP
-from backend.models.registry import build, choices, get_model_info
-from backend.utils.performance  import log_model_performance
 from backend.utils.preprocessing import (
-    preprocess_spectrum,
+    # We will replace these with SpectrumPreprocessor
+    # remove_baseline, smooth_spectrum, normalize_spectrum,
     validate_spectrum_modality,
     MODALITY_PARAMS
 )
+from .config import TARGET_LEN, LABEL_MAP
+from backend.models.registry import get_model_info as get_registry_model_info, choices
+from backend.utils.performance  import log_model_performance
 from .pydantic_models import (
     SpectrumData,
     PredictionResult,
@@ -34,6 +33,8 @@ from .pydantic_models import (
     SystemInfo,
     SystemHealth
 )
+from backend.utils.model_manager import model_manager
+from backend.utils.preprocessing_fixed import SpectrumPreprocessor
 
 
 class MLServiceError(Exception):
@@ -48,13 +49,12 @@ class MLInferenceService:
     Maintains scientific fidelity and deterministic outputs.
     """
 
-    def __init__(self):
-        self._model_cache = {}
-        self._weights_cache = {}
+    def __init__(self, model_manager_instance=model_manager):
+        self.model_manager = model_manager_instance
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     def get_memory_usage(self) -> float:
         """Get current memory usage in MB"""
-        try:
             import psutil
             process = psutil.Process()
             return process.memory_info().rss / 1024 / 1024
@@ -66,66 +66,6 @@ class MLInferenceService:
         gc.collect()
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
-
-    def load_state_dict(self, model_path: str) -> Optional[Dict]:
-        """Load state dict with caching"""
-        try:
-            if not os.path.exists(model_path):
-                return None
-
-            mtime = os.path.getmtime(model_path)
-            cache_key = f"{model_path}:{mtime}"
-
-            if cache_key not in self._weights_cache:
-                self._weights_cache[cache_key] = torch.load(
-                    model_path, map_location="cpu", weights_only=True)
-
-            return self._weights_cache[cache_key]
-        except (FileNotFoundError, RuntimeError, OSError) as e:
-            print(f"Error loading state dict: {e}")
-            return None
-
-    def load_model(self, model_name: str) -> Tuple[Optional[torch.nn.Module], bool, str]:
-        """
-        Load model with weights. Returns (model, weights_loaded, weights_path).
-        Preserves exact Streamlit caching behavior.
-        """
-        if model_name in self._model_cache:
-            return self._model_cache[model_name]
-
-        if model_name not in choices():
-            return None, False, ""
-
-        # Build model from registry
-        model = build(model_name, TARGET_LEN)
-
-        # Try to load weights from standard locations
-        weight_paths = [
-            f"model_weights/{model_name}_model.pth",
-            f"outputs/{model_name}_model.pth",
-            f"model_weights/{model_name}.pth",
-            f"outputs/{model_name}.pth",
-        ]
-
-        weights_loaded = False
-        loaded_path = ""
-
-        for weight_path in weight_paths:
-            if os.path.exists(weight_path):
-                try:
-                    state_dict = self.load_state_dict(weight_path)
-                    if state_dict:
-                        model.load_state_dict(state_dict, strict=True)
-                        model.eval()
-                        weights_loaded = True
-                        loaded_path = weight_path
-                        break
-                except (OSError, RuntimeError, KeyError):
-                    continue
-
-        result = (model, weights_loaded, loaded_path)
-        self._model_cache[model_name] = result
-        return result
 
     def create_preprocessing_metadata(
         self,
@@ -198,10 +138,10 @@ class MLInferenceService:
         self,
         model_name: str,
         weights_loaded: bool,
-        weights_path: str
+        weights_path: Path
     ) -> ModelMetadata:
         """Create model metadata with calibration details"""
-        info = get_model_info(model_name)
+        info = get_registry_model_info(model_name)
 
         return ModelMetadata(
             model_name=model_name,
@@ -214,7 +154,7 @@ class MLInferenceService:
             performance_metrics=info.get("performance", {}),
             supported_modalities=info.get("modalities", ["raman", "ftir"]),
             citation=info.get("citation", ""),
-            weights_loaded=weights_loaded,
+            weights_loaded=weights_loaded, # This comes from model_manager
             weights_path=weights_path if weights_loaded else None
         )
 
@@ -241,24 +181,32 @@ class MLInferenceService:
             raise MLServiceError("Spectrum must have at least 2 data points")
 
         # Validate modality
-        validation_result = validate_spectrum_modality(
-            x_data, y_data, modality)
+        validation_result = validate_spectrum_modality(x_data, y_data, modality)
 
         # Preprocessing
         start_preprocess = time.time()
-        x_resampled, y_resampled = preprocess_spectrum(
-            x_data, y_data, modality=modality)
+        # Use SpectrumPreprocessor for consistent preprocessing
+        preprocessor = SpectrumPreprocessor(
+            target_len=TARGET_LEN,
+            do_baseline=True, # Assuming these are desired for standard analysis
+            do_smooth=True,
+            do_normalize=True,
+            modality=modality
+        )
+        y_processed = preprocessor.preprocess_single_spectrum(x_data, y_data, use_fitted_stats=False)
+        # For x_resampled, we can just generate it based on target_len and original range
+        x_resampled = np.linspace(np.min(x_data), np.max(x_data), TARGET_LEN)
+
         preprocessing_time = time.time() - start_preprocess
 
         # Load model
-        model, weights_loaded, weights_path = self.load_model(model_name)
+        model, weights_loaded, weights_path = self.model_manager.load_model(model_name)
         if model is None:
             raise MLServiceError(f"Model '{model_name}' not available")
 
         # Create input tensor
-        input_tensor = torch.tensor(
-            y_resampled, dtype=torch.float32).unsqueeze(0).unsqueeze(0)
-
+        input_tensor = torch.tensor(y_processed, dtype=torch.float32).unsqueeze(0).unsqueeze(0)
+        input_tensor = input_tensor.to(self.device) # Move to device
         # Inference
         start_inference = time.time()
         model.eval()
@@ -293,7 +241,7 @@ class MLInferenceService:
                 modality, original_length, x_data, validation_result
             )
             qc_metadata = self.create_quality_control_metadata(
-                y_data, y_resampled)
+                y_data, y_processed)
             model_metadata = self.create_model_metadata(
                 model_name, weights_loaded, weights_path)
         else:
@@ -317,7 +265,7 @@ class MLInferenceService:
                 issues=[]
             )
             model_metadata = self.create_model_metadata(
-                model_name, weights_loaded, weights_path)
+                model_name, weights_loaded, weights_path) # Still need model metadata
 
         # Create processed spectrum data
         processed_spectrum = SpectrumData(
@@ -349,29 +297,11 @@ class MLInferenceService:
 
     def get_available_models(self) -> List[ModelInfo]:
         """Get list of available models with their information"""
-        models = []
-        for model_name in choices():
-            info = get_model_info(model_name)
-            _, weights_loaded, _ = self.load_model(model_name)
-
-            models.append(ModelInfo(
-                name=model_name,
-                description=info.get("description", ""),
-                input_length=info.get("input_length", TARGET_LEN),
-                num_classes=info.get("num_classes", 2),
-                supported_modalities=info.get("modalities", ["raman", "ftir"]),
-                performance=info.get("performance", {}),
-                parameters=info.get("parameters"),
-                speed=info.get("speed"),
-                citation=info.get("citation"),
-                available=weights_loaded
-            ))
-
-        return models
+        return self.model_manager.get_available_models()
 
     def get_system_info(self) -> SystemInfo:
         """Get system information and health status"""
-        models = self.get_available_models()
+        models = self.model_manager.get_available_models()
 
         system_health_data = SystemHealth(
             status="ok",
