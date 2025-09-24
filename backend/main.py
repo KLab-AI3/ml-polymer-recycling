@@ -24,6 +24,9 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.exceptions import RequestValidationError
 from contextlib import asynccontextmanager
 
+from backend.service import ml_service, MLServiceError
+from backend.utils.model_manager import model_manager
+from backend.utils.enhanced_ml_service import enhanced_ml_service
 from .pydantic_models import (
     SpectrumData,
     AnalysisRequest,
@@ -39,9 +42,6 @@ from .pydantic_models import (
     ErrorResponse,
     BatchError,
 )
-from backend.utils.model_manager import model_manager
-from backend.service import ml_service, MLServiceError
-from backend.utils.enhanced_ml_service import enhanced_ml_service
 
 from backend.utils.prepare_data import prepare_data as run_prepare_data
 from backend.utils.train import train as run_training_job
@@ -140,18 +140,17 @@ app = FastAPI(
 # CORS: Allows requests from any origin.
 # For production, this should be replaced with a specific list of allowed origins.
 # !! CRITICAL: Review CORS settings before deploying to production.====================||
+_allowed = os.getenv("CORS_ALLOWED_ORIGINS", "http://localhost:3000")
+origins = [o.strip() for o in _allowed.split(",") if o.strip()]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, restrict to specific domains
+    allow_origins=origins or ["http://localhost:3000"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
-# !! CRITICAL =========================================================================||
 
 # Error handlers
-
-
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request, exc):
     # Sanitize validation errors to ensure they are JSON serializable
@@ -291,13 +290,19 @@ async def analyze_spectrum(request: AnalysisRequest):
 async def explain_spectrum(request: AnalysisRequest):
     """Analyze a spectrum with explainability features"""
     try:
+        # Ensure we pass modality and use the same include_provenance flag
         result = enhanced_ml_service.predict_with_explanation(
-            request.spectrum,           # positional: SpectrumData
-            request.model_name,         # positional: str
-            include_feature_importance=True  # Ensure this parameter is supported by the method
+            request.spectrum,                  # SpectrumData
+            request.model_name,                # model name
+            modality=request.modality,         # pass modality (raman/ftir)
+            include_feature_importance=request.include_provenance
         )
         return result
     except Exception as e:
+        # Log full traceback for debugging
+        import traceback, sys
+        print("[explain] Error during prediction with explanation:", str(e), file=sys.stderr)
+        traceback.print_exc()
         raise HTTPException(status_code=400, detail=str(e)) from e
 
 

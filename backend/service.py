@@ -20,9 +20,10 @@ from backend.utils.preprocessing import (
     validate_spectrum_modality,
     MODALITY_PARAMS
 )
-from .config import TARGET_LEN, LABEL_MAP
-from backend.models.registry import get_model_info as get_registry_model_info, choices
+from backend.models.registry import get_model_info as get_registry_model_info
 from backend.utils.performance  import log_model_performance
+from .config import TARGET_LEN, LABEL_MAP
+
 from .pydantic_models import (
     SpectrumData,
     PredictionResult,
@@ -55,7 +56,7 @@ class MLInferenceService:
 
     def get_memory_usage(self) -> float:
         """Get current memory usage in MB"""
-            import psutil
+        try:
             process = psutil.Process()
             return process.memory_info().rss / 1024 / 1024
         except ImportError:
@@ -155,7 +156,7 @@ class MLInferenceService:
             supported_modalities=info.get("modalities", ["raman", "ftir"]),
             citation=info.get("citation", ""),
             weights_loaded=weights_loaded, # This comes from model_manager
-            weights_path=weights_path if weights_loaded else None
+            weights_path=str(weights_path) if weights_loaded else None
         )
 
     def run_inference(
@@ -203,6 +204,9 @@ class MLInferenceService:
         model, weights_loaded, weights_path = self.model_manager.load_model(model_name)
         if model is None:
             raise MLServiceError(f"Model '{model_name}' not available")
+
+        # Ensure model is on the correct device before inference
+        model.to(self.device)
 
         # Create input tensor
         input_tensor = torch.tensor(y_processed, dtype=torch.float32).unsqueeze(0).unsqueeze(0)
@@ -270,7 +274,7 @@ class MLInferenceService:
         # Create processed spectrum data
         processed_spectrum = SpectrumData(
             x_values=x_resampled.tolist(),
-            y_values=y_resampled.tolist(),
+            y_values=y_processed.tolist(),
             filename=f"processed_{spectrum.filename}" if spectrum.filename else None
         )
 

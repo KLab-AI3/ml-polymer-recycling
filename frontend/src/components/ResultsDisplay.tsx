@@ -46,17 +46,6 @@ const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ result }) => {
         </div>
       </div>
 
-      {/* Spectrum Comparison */}
-      <div className="results-section">
-        <h4>Spectrum Processing</h4>
-        <div className="chart-container">
-          <SpectrumChart
-            spectrum={result.original_spectrum}
-            processedSpectrum={result.processed_spectrum}
-          />
-        </div>
-      </div>
-
       {/* Performance Metrics */}
       <div className="results-section">
         <h4>Performance Metrics</h4>
