@@ -13,7 +13,7 @@ performance_logger = logging.getLogger('performance')
 performance_logger.setLevel(logging.INFO)
 
 # Create file handler for performance logs
-log_dir = Path("logs")
+log_dir = Path("/tmp/logs")
 log_dir.mkdir(exist_ok=True)
 file_handler = logging.FileHandler(log_dir / "performance.log")
 file_handler.setLevel(logging.INFO)
