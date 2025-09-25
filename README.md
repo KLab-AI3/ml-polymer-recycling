@@ -104,8 +104,8 @@ sequenceDiagram
 
 ```bash
 # Clone repo
-git clone https://github.com/devjas1/polymeros.git
-cd polymeros
+git clone https://github.com/KLab-AI3/ml-polymer-recycling.git
+cd ml-polymer-recycling
 
 # Backend setup
 pip install -r backend/requirements.txt
