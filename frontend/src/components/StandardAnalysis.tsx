@@ -3,6 +3,7 @@ import { useDropzone } from "react-dropzone";
 import { apiClient, SpectrumData, PredictionResult } from "../apiClient";
 import SpectrumChart from "./SpectrumChart";
 import ResultsDisplay from "./ResultsDisplay";
+import "../static/style.css";
 
 interface StandardAnalysisProps {
   selectedModel: string;
@@ -81,34 +82,51 @@ const StandardAnalysis: React.FC<StandardAnalysisProps> = ({
   };
 
   return (
-    <div className="analysis-panel">
+    <div
+      className="analysis-panel"
+      role="region"
+      aria-label="Standard Analysis"
+    >
+
       <div className="input-column">
-        <h3>📁 Upload Spectrum</h3>
+        <h3>Upload Spectrum</h3>
 
         <div
           {...getRootProps()}
           className={`file-upload ${isDragActive ? "dragover" : ""}`}
+          aria-label="Upload spectrum file"
         >
-          <input {...getInputProps()} />
-          <div className="upload-icon">📊</div>
+          <input {...getInputProps()} aria-label="spectrum-file-input" />
+          <div
+            className="upload-icon"
+            aria-hidden
+            style={{
+              width: 48,
+              height: 48,
+              borderRadius: 6,
+              background: "#e6f3ff",
+            }}
+          />
           <div className="upload-text">
             {isDragActive ? (
               <p>Drop the spectrum file here...</p>
             ) : (
               <>
                 <p>Drag & drop a spectrum file here, or click to select</p>
-                <p style={{ fontSize: "0.8rem", color: "#888" }}>
-                  Supports .txt, .csv, .json files
-                </p>
+                <p>Supports .txt, .csv, .json files</p>
               </>
             )}
           </div>
         </div>
 
-        {error && <div className="error">{error}</div>}
+        {error && (
+          <div className="error" role="alert">
+            {error}
+          </div>
+        )}
 
         {spectrum && (
-          <div className="spectrum-info">
+          <div className="spectrum-info" aria-live="polite">
             <div className="success">
               ✅ Spectrum loaded: {spectrum.filename || "Unknown filename"}
               <br />
@@ -118,20 +136,28 @@ const StandardAnalysis: React.FC<StandardAnalysisProps> = ({
               {Math.max(...spectrum.x_values).toFixed(1)} cm⁻¹
             </div>
 
-            <div style={{ marginTop: "1rem" }}>
+            <div
+              style={{
+                marginTop: "1rem",
+                display: "flex",
+                gap: "0.5rem",
+                flexWrap: "wrap",
+              }}
+            >
               <button
                 className="btn btn-primary"
                 onClick={handleAnalyze}
                 disabled={loading}
-                style={{ marginRight: "0.5rem" }}
+                aria-disabled={loading}
+                aria-label="Analyze spectrum"
               >
                 {loading ? (
                   <>
-                    <div className="loading-spinner"></div>
+                    <div className="loading-spinner" aria-hidden />
                     Analyzing...
                   </>
                 ) : (
-                  <>🔬 Analyze Spectrum</>
+                  <>Analyze Spectrum</>
                 )}
               </button>
 
@@ -139,44 +165,36 @@ const StandardAnalysis: React.FC<StandardAnalysisProps> = ({
                 className="btn btn-secondary"
                 onClick={handleReset}
                 disabled={loading}
+                aria-label="Reset spectrum"
               >
-                🔄 Reset
+                Reset
               </button>
             </div>
           </div>
         )}
 
         {loading && (
-          <div className="loading">
-            <div className="loading-spinner"></div>
+          <div className="loading" aria-live="polite">
+            <div className="loading-spinner" aria-hidden></div>
             Processing spectrum...
           </div>
         )}
       </div>
 
       <div className="results-column">
-        <h3>📊 Analysis Results</h3>
+        <h3>Analysis Results</h3>
 
         {spectrum && (
-          <div className="chart-container">
+          <div className="chart-container" aria-hidden={!!result === false}>
             <h4>Spectrum Visualization</h4>
             <SpectrumChart spectrum={spectrum} />
           </div>
         )}
 
-        {result && <ResultsDisplay result={result} />}
-
-        {!spectrum && !result && (
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              height: "200px",
-              color: "#888",
-              fontSize: "1.1rem",
-            }}
-          >
+        {result ? (
+          <ResultsDisplay result={result} />
+        ) : (
+          <div className="placeholder">
             Upload a spectrum file to see analysis results
           </div>
         )}

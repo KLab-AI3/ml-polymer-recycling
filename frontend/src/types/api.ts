@@ -501,6 +501,10 @@ export interface components {
              * @description Whether model is available for inference
              */
             available: boolean;
+
+            display_name?: string;
+
+            publication_url?: string;
         };
         /**
          * ModelMetadata
