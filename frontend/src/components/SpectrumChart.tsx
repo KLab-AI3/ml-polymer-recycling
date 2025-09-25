@@ -20,8 +20,6 @@ const SpectrumChart: React.FC<SpectrumChartProps> = ({
   spectrum,
   processedSpectrum,
 }) => {
-  // Defensive Programming: If there's no data, don't render anything.
-  // This prevents errors if the spectrum prop is invalid.
   if (!spectrum || !spectrum.x_values || spectrum.x_values.length === 0) {
     return null;
   }
@@ -35,19 +33,21 @@ const SpectrumChart: React.FC<SpectrumChartProps> = ({
   }));
 
   return (
-    // ResponsiveContainer will now correctly use the height from the CSS
     <ResponsiveContainer width="100%" height="100%">
       <LineChart
         data={chartData}
-        margin={{ top: 5, right: 20, left: -10, bottom: 20 }}
+        // FIX 1: Increased left and bottom margin to prevent labels from being cut off.
+        margin={{ top: 10, right: 30, left: 20, bottom: 25 }}
       >
         <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
         <XAxis
           dataKey="wavenumber"
-          type="number" // Explicitly set type for better scaling
-          domain={["dataMin", "dataMax"]} // Ensure the full range is shown
+          type="number"
+          domain={["dataMin", "dataMax"]}
           stroke="var(--color-text-tertiary)"
           fontSize={12}
+          // FIX 2: Added a tickFormatter to round the numbers on the axis.
+          tickFormatter={(tick) => Math.round(tick).toString()}
           tick={{ fill: "var(--color-text-tertiary)" }}
           label={{
             value: "Wavenumber (cm⁻¹)",
@@ -64,6 +64,8 @@ const SpectrumChart: React.FC<SpectrumChartProps> = ({
             value: "Intensity",
             angle: -90,
             position: "insideLeft",
+            // FIX 3: Added an offset to the Y-axis label to position it better.
+            offset: -5,
             fill: "var(--color-text-secondary)",
           }}
         />
@@ -79,18 +81,20 @@ const SpectrumChart: React.FC<SpectrumChartProps> = ({
             typeof value === "number" ? value.toFixed(4) : value,
             name === "intensity" ? "Original" : "Processed",
           ]}
-          // Safer label formatter
           labelFormatter={(label: any) =>
             typeof label === "number"
               ? `Wavenumber: ${label.toFixed(2)} cm⁻¹`
               : ""
           }
         />
-        <Legend wrapperStyle={{ fontSize: "14px", paddingTop: "10px" }} />
+        <Legend
+          verticalAlign="top"
+          height={40}
+          wrapperStyle={{ fontSize: "14px", paddingTop: "10px" }}
+        />
         <Line
           type="monotone"
           dataKey="intensity"
-          // CORRECTED: Use --color-primary from our design system
           stroke="var(--color-primary)"
           strokeWidth={2}
           dot={false}
@@ -100,16 +104,13 @@ const SpectrumChart: React.FC<SpectrumChartProps> = ({
           <Line
             type="monotone"
             dataKey="processed"
-            // CORRECTED: Use a valid color from our system, e.g., --color-success
-            stroke="var(--color-success)"
-            strokeWidth={2}
-            dot={false}
-            name="Processed"
-          />
-        )}
-      </LineChart>
-    </ResponsiveContainer>
+                  stroke="var(--color-success)"
+                />
+              )}
+              </LineChart>
+            </ResponsiveContainer>
   );
 };
 
 export default SpectrumChart;
+
