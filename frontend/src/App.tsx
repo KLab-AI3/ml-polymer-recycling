@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import "./App.css";
+import "./static/style.css";
 import Header from "./components/Header";
 import Sidebar from "./components/Sidebar";
 import StandardAnalysis from "./components/StandardAnalysis";

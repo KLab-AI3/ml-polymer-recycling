@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { apiClient, ExplanationResult, SpectrumData } from "../apiClient";
-import "../static/style.css"; // Ensure this is imported
+import "../static/style.css";
 
 interface ExplainabilityPanelProps {
   spectrumData: SpectrumData | null;

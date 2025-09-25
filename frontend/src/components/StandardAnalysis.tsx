@@ -3,7 +3,7 @@ import { useDropzone } from "react-dropzone";
 import { apiClient, SpectrumData, PredictionResult } from "../apiClient";
 import SpectrumChart from "./SpectrumChart";
 import ResultsDisplay from "./ResultsDisplay";
-import "../App.css";
+import "../static/style.css";
 
 interface StandardAnalysisProps {
   selectedModel: string;

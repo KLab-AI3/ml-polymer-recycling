@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { apiClient, ModelInfo } from "../apiClient";
-import "../App.css"; // Ensure the main CSS file is imported
+import "../static/style.css"; // Ensure the main CSS file is imported
 
 interface SidebarProps {
   selectedModel: string;

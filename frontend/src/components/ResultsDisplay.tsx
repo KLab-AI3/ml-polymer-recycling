@@ -1,6 +1,6 @@
 import React from "react";
 import { PredictionResult } from "../apiClient";
-import "../App.css"; // Ensure the main CSS file is imported
+import "../static/style.css"; // Ensure the main CSS file is imported
 
 interface ResultsDisplayProps {
   result: PredictionResult;

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { apiClient, SystemInfo } from "../apiClient";
-import "../App.css"; // Ensure the main CSS file is imported
+import "../static/style.css"; // Ensure the main CSS file is imported
 
 const PerformanceTracking: React.FC = () => {
   const [systemInfo, setSystemInfo] = useState<SystemInfo | null>(null);
