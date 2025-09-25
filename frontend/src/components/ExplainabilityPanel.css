@@ -1,337 +1,97 @@
-/* ExplainabilityPanel.css */
+/* --- Explainability Panel Styles --- */
 
-.explainability-panel {
-  background: #ffffff;
-  border-radius: 12px;
-  padding: 24px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
-  margin: 16px 0;
-}
-
-.panel-header {
-  margin-bottom: 24px;
-  text-align: center;
-}
-
-.panel-header h2 {
-  color: #2c3e50;
-  margin-bottom: 8px;
-  font-size: 24px;
-  font-weight: 600;
-}
-
-.panel-header p {
-  color: #7f8c8d;
-  font-size: 16px;
-  margin: 0;
-}
-
-.panel-actions {
-  text-align: center;
-  margin-bottom: 24px;
-}
-
-.explain-button {
-  background: linear-gradient(135deg, #3498db, #2980b9);
-  color: white;
-  border: none;
-  padding: 12px 32px;
-  border-radius: 8px;
-  font-size: 16px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  box-shadow: 0 2px 8px rgba(52, 152, 219, 0.3);
-}
-
-.explain-button:hover:not(:disabled) {
-  background: linear-gradient(135deg, #2980b9, #1f5f8b);
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(52, 152, 219, 0.4);
-}
-
-.explain-button:disabled {
-  background: #bdc3c7;
-  cursor: not-allowed;
-  transform: none;
-  box-shadow: none;
-}
-
-.error-message {
-  background: #fef2f2;
-  border: 1px solid #fecaca;
-  border-radius: 8px;
-  padding: 16px;
-  margin-bottom: 24px;
-}
-
-.error-message h4 {
-  color: #dc2626;
-  margin: 0 0 8px 0;
-  font-size: 16px;
-}
-
-.error-message p {
-  color: #7f1d1d;
-  margin: 0;
-}
-
-.explanation-results {
-  space-y: 24px;
-}
-
-/* Prediction Summary Styles */
-.prediction-summary {
-  background: #f8fafc;
-  border-radius: 8px;
-  padding: 20px;
-  margin-bottom: 24px;
-}
-
-.prediction-summary h3 {
-  color: #2c3e50;
-  margin: 0 0 16px 0;
-  font-size: 20px;
-}
-
-.prediction-main {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 16px;
-  margin-bottom: 20px;
-}
-
-.prediction-badge {
-  padding: 12px 24px;
-  border-radius: 25px;
-  font-weight: 700;
-  font-size: 18px;
-  text-align: center;
-  min-width: 120px;
-}
-
-.prediction-badge.stable {
-  background: linear-gradient(135deg, #27ae60, #229954);
-  color: white;
-}
-
-.prediction-badge.weathered {
-  background: linear-gradient(135deg, #e74c3c, #c0392b);
-  color: white;
-}
-
-.confidence-score {
-  font-size: 18px;
-  font-weight: 600;
-  color: #34495e;
-}
-
-.probability-breakdown h4 {
-  color: #2c3e50;
-  margin: 16px 0 12px 0;
-  font-size: 16px;
-}
-
-.probability-item {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 8px;
-}
-
-.class-label {
-  min-width: 80px;
-  font-weight: 500;
-  color: #34495e;
-}
-
-.probability-bar {
-  flex: 1;
-  height: 24px;
-  background: #ecf0f1;
-  border-radius: 12px;
-  overflow: hidden;
-}
-
-.probability-fill {
-  height: 100%;
-  border-radius: 12px;
-  transition: width 0.3s ease;
-}
-
-.probability-fill.stable {
-  background: linear-gradient(90deg, #27ae60, #2ecc71);
-}
-
-.probability-fill.weathered {
-  background: linear-gradient(90deg, #e74c3c, #ec7063);
-}
-
-.probability-value {
-  min-width: 50px;
-  text-align: right;
-  font-weight: 600;
-  color: #2c3e50;
-}
-
-.model-info {
-  text-align: center;
-  margin-top: 16px;
-  color: #7f8c8d;
-}
-
-/* Feature Importance Styles */
-.feature-importance-section {
-  background: #f8fafc;
-  border-radius: 8px;
-  padding: 20px;
-  margin-bottom: 24px;
-}
-
-.feature-importance-section h3 {
-  color: #2c3e50;
-  margin: 0 0 16px 0;
-  font-size: 20px;
-}
-
-.importance-summary {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 12px;
-  margin-bottom: 20px;
-}
-
-.summary-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 8px 12px;
-  background: white;
-  border-radius: 6px;
-  border-left: 4px solid #3498db;
-}
-
-.summary-item label {
-  font-weight: 600;
-  color: #2c3e50;
-}
-
-.summary-item span {
-  color: #34495e;
-  font-family: "Courier New", monospace;
-}
-
-.top-features h4 {
-  color: #2c3e50;
-  margin: 20px 0 12px 0;
-  font-size: 16px;
-}
-
-.features-grid {
-  display: grid;
-  gap: 8px;
-}
-
-.feature-item {
-  display: grid;
-  grid-template-columns: 60px 1fr 80px;
-  align-items: center;
-  gap: 12px;
-  padding: 8px 12px;
-  background: white;
-  border-radius: 6px;
-  border: 1px solid #e9ecef;
-}
-
-.feature-index {
-  font-family: "Courier New", monospace;
-  font-weight: 600;
-  color: #6c757d;
-  font-size: 12px;
-}
-
-.importance-bar {
-  height: 20px;
-  background: #e9ecef;
-  border-radius: 10px;
-  overflow: hidden;
-  position: relative;
-}
-
-.importance-fill {
-  height: 100%;
-  background: linear-gradient(90deg, #f39c12, #e67e22);
-  border-radius: 10px;
-  transition: width 0.3s ease;
-}
-
-.importance-value {
-  font-family: "Courier New", monospace;
-  font-size: 12px;
-  color: #2c3e50;
-  text-align: right;
-}
-
-.interpretation-help {
-  margin-top: 20px;
-  padding: 16px;
-  background: #e8f4f8;
-  border-radius: 8px;
-  border-left: 4px solid #17a2b8;
-}
-
-.interpretation-help h4 {
-  color: #2c3e50;
-  margin: 0 0 12px 0;
-  font-size: 16px;
-}
-
-.interpretation-help ul {
-  margin: 0;
-  padding-left: 20px;
-}
-
-.interpretation-help li {
-  color: #34495e;
-  margin-bottom: 8px;
+.card__subtitle {
+  font-size: 1rem;
+  color: var(--color-text-secondary);
+  margin: calc(-1 * var(--spacing-sm)) 0 var(--spacing-md) 0;
   line-height: 1.5;
 }
 
-.interpretation-help strong {
-  color: #2c3e50;
+.explanation-layout {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--spacing-lg);
+  margin-top: var(--spacing-lg);
 }
 
-.no-data-message {
+@media (min-width: 1024px) {
+  .explanation-layout {
+    /* Prediction summary takes 1/3, feature importance takes 2/3 */
+    grid-template-columns: 1fr 2fr;
+    align-items: start;
+  }
+}
+
+/* --- Prediction Summary Card --- */
+.prediction-summary-content {
   text-align: center;
-  padding: 40px 20px;
-  color: #7f8c8d;
-  font-style: italic;
+}
+.prediction-badge {
+  display: inline-block;
+  padding: var(--spacing-sm) var(--spacing-lg);
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  border-radius: var(--radius-md);
+  color: var(--color-text-on-primary);
+  margin-bottom: var(--spacing-xs);
+  text-transform: uppercase;
+}
+/* Use existing color variables for consistency */
+.prediction-badge.stable { background-color: var(--color-primary); }
+.prediction-badge.weathered { background-color: var(--color-danger); }
+
+.confidence-score {
+  font-size: 1.1rem;
+  color: var(--color-text-secondary);
+  font-weight: 500;
+  margin-bottom: var(--spacing-lg);
 }
 
-.no-data-message p {
-  margin: 0;
-  font-size: 16px;
+.probability-breakdown {
+  text-align: left;
+  margin-top: var(--spacing-lg);
+  border-top: 1px solid var(--color-border);
+  padding-top: var(--spacing-lg);
 }
-
-/* Responsive Design */
-@media (max-width: 768px) {
-  .explainability-panel {
-    padding: 16px;
-    margin: 8px 0;
-  }
-
-  .prediction-main {
-    flex-direction: column;
-    gap: 12px;
-  }
-
-  .importance-summary {
-    grid-template-columns: 1fr;
-  }
-
-  .feature-item {
-    grid-template-columns: 50px 1fr 60px;
-    gap: 8px;
-  }
+.probability-item {
+  display: grid;
+  grid-template-columns: 80px 1fr 50px;
+  align-items: center;
+  gap: var(--spacing-sm);
+  margin-bottom: var(--spacing-sm);
+  font-size: 0.9rem;
 }
+.class-label { font-weight: 500; text-transform: capitalize; }
+.probability-bar { height: 12px; background-color: var(--color-bg-alt); border-radius: 6px; overflow: hidden; }
+.probability-fill { height: 100%; border-radius: 6px; transition: width 0.3s ease-in-out; }
+.probability-fill.stable { background-color: var(--color-primary); }
+.probability-fill.weathered { background-color: var(--color-danger); }
+.probability-value { font-family: var(--font-mono); font-weight: 500; text-align: right; }
+.model-info-footer { margin-top: var(--spacing-md); font-size: 0.8rem; color: var(--color-text-tertiary); text-align: center; }
+
+/* --- Feature Importance Card --- */
+.importance-summary {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--spacing-md);
+  padding: var(--spacing-md);
+  background-color: var(--color-bg-alt);
+  border-radius: var(--radius-md);
+  margin-bottom: var(--spacing-lg);
+}
+.summary-item label { display: block; font-size: 0.8rem; color: var(--color-text-secondary); font-weight: 500; }
+.summary-item span { font-size: 1rem; font-weight: 600; font-family: var(--font-mono); text-transform: capitalize; }
+
+.top-features-title { font-size: 1rem; font-weight: 600; margin: var(--spacing-lg) 0 var(--spacing-sm) 0; }
+.features-grid { display: flex; flex-direction: column; gap: var(--spacing-sm); }
+.feature-item { display: grid; grid-template-columns: 60px 1fr 50px; align-items: center; gap: var(--spacing-md); font-size: 0.9rem; }
+.feature-index { font-family: var(--font-mono); color: var(--color-text-secondary); background-color: var(--color-bg-alt); padding: var(--spacing-xs); border-radius: var(--radius-sm); text-align: center; }
+.importance-bar { height: 16px; background-color: var(--color-bg-alt); border-radius: 8px; overflow: hidden; }
+.importance-fill { height: 100%; background-color: var(--color-primary); border-radius: 8px; transition: width 0.3s ease-in-out;}
+.importance-value { font-family: var(--font-mono); font-weight: 500; text-align: right; }
+
+.interpretation-guide { margin-top: var(--spacing-lg); }
+.interpretation-guide ul { margin: 0; padding-left: var(--spacing-md); font-size: 0.9rem; }
+.interpretation-guide li { margin-bottom: var(--spacing-xs); }
+.interpretation-guide li::marker { color: var(--color-primary); }

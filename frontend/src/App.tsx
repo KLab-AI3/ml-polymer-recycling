@@ -6,7 +6,7 @@ import StandardAnalysis from "./components/StandardAnalysis";
 import ModelComparison from "./components/ModelComparison";
 import PerformanceTracking from "./components/PerformanceTracking";
 import ExplainabilityPanel from "./components/ExplainabilityPanel";
-import { apiClient, SpectrumData } from "./apiClient";
+import { SpectrumData } from "./apiClient";
 
 function App() {
   const [activeTab, setActiveTab] = useState("standard");
@@ -51,7 +51,7 @@ function App() {
   };
 
   return (
-    <div className="App">
+    <div className="app-container">
       <Header />
       <div className="app-layout">
         <Sidebar

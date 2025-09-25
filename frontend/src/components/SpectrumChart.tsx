@@ -7,6 +7,7 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
+  Legend,
 } from "recharts";
 import { SpectrumData } from "../apiClient";
 
@@ -19,7 +20,12 @@ const SpectrumChart: React.FC<SpectrumChartProps> = ({
   spectrum,
   processedSpectrum,
 }) => {
-  // Convert spectrum data to chart format
+  // Defensive Programming: If there's no data, don't render anything.
+  // This prevents errors if the spectrum prop is invalid.
+  if (!spectrum || !spectrum.x_values || spectrum.x_values.length === 0) {
+    return null;
+  }
+
   const chartData = spectrum.x_values.map((x, index) => ({
     wavenumber: x,
     intensity: spectrum.y_values[index],
@@ -29,62 +35,80 @@ const SpectrumChart: React.FC<SpectrumChartProps> = ({
   }));
 
   return (
-    <div style={{ width: "100%", height: "300px" }}>
-      <ResponsiveContainer width="100%" height="100%">
-        <LineChart
-          data={chartData}
-          margin={{ top: 20, right: 30, left: 20, bottom: 20 }}
-        >
-          <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-          <XAxis
-            dataKey="wavenumber"
-            stroke="#666"
-            fontSize={12}
-            label={{
-              value: "Wavenumber (cm⁻¹)",
-              position: "insideBottom",
-              offset: -10,
-            }}
-          />
-          <YAxis
-            stroke="#666"
-            fontSize={12}
-            label={{ value: "Intensity", angle: -90, position: "insideLeft" }}
-          />
-          <Tooltip
-            contentStyle={{
-              backgroundColor: "#f8f9fa",
-              border: "1px solid #dee2e6",
-              borderRadius: "4px",
-              fontSize: "12px",
-            }}
-            formatter={(value: any, name: string) => [
-              typeof value === "number" ? value.toFixed(4) : value,
-              name === "intensity" ? "Original" : "Processed",
-            ]}
-            labelFormatter={(label: any) => `Wavenumber: ${label} cm⁻¹`}
-          />
+    // ResponsiveContainer will now correctly use the height from the CSS
+    <ResponsiveContainer width="100%" height="100%">
+      <LineChart
+        data={chartData}
+        margin={{ top: 5, right: 20, left: -10, bottom: 20 }}
+      >
+        <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
+        <XAxis
+          dataKey="wavenumber"
+          type="number" // Explicitly set type for better scaling
+          domain={["dataMin", "dataMax"]} // Ensure the full range is shown
+          stroke="var(--color-text-tertiary)"
+          fontSize={12}
+          tick={{ fill: "var(--color-text-tertiary)" }}
+          label={{
+            value: "Wavenumber (cm⁻¹)",
+            position: "insideBottom",
+            offset: -15,
+            fill: "var(--color-text-secondary)",
+          }}
+        />
+        <YAxis
+          stroke="var(--color-text-tertiary)"
+          fontSize={12}
+          tick={{ fill: "var(--color-text-tertiary)" }}
+          label={{
+            value: "Intensity",
+            angle: -90,
+            position: "insideLeft",
+            fill: "var(--color-text-secondary)",
+          }}
+        />
+        <Tooltip
+          contentStyle={{
+            backgroundColor: "var(--color-bg-component)",
+            border: "1px solid var(--color-border)",
+            borderRadius: "var(--radius-md)",
+            boxShadow: "var(--shadow-sm)",
+            fontSize: "12px",
+          }}
+          formatter={(value: any, name: string) => [
+            typeof value === "number" ? value.toFixed(4) : value,
+            name === "intensity" ? "Original" : "Processed",
+          ]}
+          // Safer label formatter
+          labelFormatter={(label: any) =>
+            typeof label === "number"
+              ? `Wavenumber: ${label.toFixed(2)} cm⁻¹`
+              : ""
+          }
+        />
+        <Legend wrapperStyle={{ fontSize: "14px", paddingTop: "10px" }} />
+        <Line
+          type="monotone"
+          dataKey="intensity"
+          // CORRECTED: Use --color-primary from our design system
+          stroke="var(--color-primary)"
+          strokeWidth={2}
+          dot={false}
+          name="Original"
+        />
+        {processedSpectrum && (
           <Line
             type="monotone"
-            dataKey="intensity"
-            stroke="#ff6b6b"
-            strokeWidth={1.5}
+            dataKey="processed"
+            // CORRECTED: Use a valid color from our system, e.g., --color-success
+            stroke="var(--color-success)"
+            strokeWidth={2}
             dot={false}
-            name="Original"
+            name="Processed"
           />
-          {processedSpectrum && (
-            <Line
-              type="monotone"
-              dataKey="processed"
-              stroke="#4ecdc4"
-              strokeWidth={1.5}
-              dot={false}
-              name="Processed"
-            />
-          )}
-        </LineChart>
-      </ResponsiveContainer>
-    </div>
+        )}
+      </LineChart>
+    </ResponsiveContainer>
   );
 };
 

@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { apiClient, SystemInfo } from "../apiClient";
+import "../App.css"; // Ensure the main CSS file is imported
 
 const PerformanceTracking: React.FC = () => {
   const [systemInfo, setSystemInfo] = useState<SystemInfo | null>(null);
@@ -10,6 +11,7 @@ const PerformanceTracking: React.FC = () => {
     const fetchSystemInfo = async () => {
       try {
         setLoading(true);
+        setError(null);
         const info = await apiClient.getSystemInfo();
         setSystemInfo(info);
       } catch (err) {
@@ -26,142 +28,138 @@ const PerformanceTracking: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="loading">
-        <div className="loading-spinner"></div>
-        Loading performance data...
+      <div className="card">
+        <div className="loading-indicator">
+          <div className="spinner"></div>
+          <span>Loading Performance Data...</span>
+        </div>
       </div>
     );
   }
 
   if (error) {
-    return <div className="error">{error}</div>;
+    return <div className="error-message">{error}</div>;
+  }
+
+  if (!systemInfo) {
+    return (
+      <div className="placeholder">
+        <p>No system information could be loaded.</p>
+      </div>
+    );
   }
 
   return (
     <div className="performance-panel">
-      <h2>📈 Performance Tracking</h2>
-      <p>System health and model performance metrics</p>
-
-      {systemInfo && (
-        <>
-          {/* System Health */}
-          <div className="results-section">
-            <h3>System Health</h3>
-            <div className="metadata-grid">
-              <div className="metadata-item">
-                <h4>API Version</h4>
-                <p>{systemInfo.version}</p>
-              </div>
-              <div className="metadata-item">
-                <h4>Models Loaded</h4>
-                <p>
-                  {systemInfo.system_health.models_loaded} /{" "}
-                  {systemInfo.system_health.total_models}
-                </p>
-              </div>
-              <div className="metadata-item">
-                <h4>Memory Usage</h4>
-                <p>{systemInfo.system_health.memory_usage_mb.toFixed(1)} MB</p>
-              </div>
-              <div className="metadata-item">
-                <h4>PyTorch Version</h4>
-                <p>{systemInfo.system_health.torch_version}</p>
-              </div>
-              <div className="metadata-item">
-                <h4>CUDA Available</h4>
-                <p>
-                  {systemInfo.system_health.cuda_available ? "✅ Yes" : "❌ No"}
-                </p>
-              </div>
-              <div className="metadata-item">
-                <h4>Max Batch Size</h4>
-                <p>{systemInfo.max_batch_size}</p>
-              </div>
-            </div>
+      {/* --- System Health Card --- */}
+      <div className="card">
+        <h2 className="card__title">System Health</h2>
+        <div className="info-grid">
+          <div className="info-item">
+            <label>API Version</label>
+            <span>{systemInfo.version}</span>
           </div>
+          <div className="info-item">
+            <label>Models Loaded</label>
+            <span>
+              {systemInfo.system_health.models_loaded} /{" "}
+              {systemInfo.system_health.total_models}
+            </span>
+          </div>
+          <div className="info-item">
+            <label>Memory Usage</label>
+            <span>
+              {systemInfo.system_health.memory_usage_mb.toFixed(1)} MB
+            </span>
+          </div>
+          <div className="info-item">
+            <label>PyTorch Version</label>
+            <span>{systemInfo.system_health.torch_version}</span>
+          </div>
+          <div className="info-item">
+            <label>CUDA Available</label>
+            <span
+              className={
+                systemInfo.system_health.cuda_available
+                  ? "status-ok"
+                  : "status-bad"
+              }
+            >
+              {systemInfo.system_health.cuda_available ? "Yes" : "No"}
+            </span>
+          </div>
+          <div className="info-item">
+            <label>Max Batch Size</label>
+            <span>{systemInfo.max_batch_size}</span>
+          </div>
+        </div>
+      </div>
 
-          {/* Model Performance */}
-          <div className="results-section">
-            <h3>Model Performance Summary</h3>
-            <div className="model-performance-grid">
-              {(systemInfo.available_models || []).map((model) => (
-                <div key={model.name} className="model-performance-card">
-                  <h4>{model.name}</h4>
-                  <div className="performance-metrics">
-                    <div className="metric">
-                      <span className="metric-label">Accuracy</span>
-                      <span className="metric-value">
-                        {((model.performance?.accuracy ?? 0) * 100).toFixed(1)}%
-                      </span>
-                    </div>
-                    <div className="metric">
-                      <span className="metric-label">F1 Score</span>
-                      <span className="metric-value">
-                        {((model.performance?.f1_score ?? 0) * 100).toFixed(1)}%
-                      </span>
-                    </div>
-                    <div className="metric">
-                      <span className="metric-label">Parameters</span>
-                      <span className="metric-value">
-                        {model.parameters || "Unknown"}
-                      </span>
-                    </div>
-                    <div className="metric">
-                      <span className="metric-label">Speed</span>
-                      <span className="metric-value">
-                        {model.speed || "Unknown"}
-                      </span>
-                    </div>
-                    <div className="metric">
-                      <span className="metric-label">Status</span>
-                      <span
-                        className={`metric-value ${
-                          model.available ? "available" : "unavailable"
-                        }`}
-                      >
-                        {model.available ? "✅ Available" : "❌ Unavailable"}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="model-description">
-                    <p>{model.description}</p>
-                  </div>
-                  {model.citation && (
-                    <div className="model-citation">
-                      <p style={{ fontSize: "0.8rem", fontStyle: "italic" }}>
-                        {model.citation}
-                      </p>
-                    </div>
-                  )}
+      {/* --- Model Performance Card --- */}
+      <div className="card">
+        <h2 className="card__title">Available Models</h2>
+        <div className="model-grid">
+          {(systemInfo.available_models || []).map((model) => (
+            <div key={model.name} className="model-card">
+              <h4 className="model-card__title">
+                {model.display_name || model.name}
+              </h4>
+              <div className="model-card__metrics">
+                <div>
+                  <span>Accuracy</span>
+                  <span>
+                    {((model.performance?.accuracy ?? 0) * 100).toFixed(1)}%
+                  </span>
                 </div>
-              ))}
+                <div>
+                  <span>F1 Score</span>
+                  <span>
+                    {((model.performance?.f1_score ?? 0) * 100).toFixed(1)}%
+                  </span>
+                </div>
+                <div>
+                  <span>Params</span>
+                  <span>{model.parameters || "N/A"}</span>
+                </div>
+                <div>
+                  <span>Status</span>
+                  <span
+                    className={model.available ? "status-ok" : "status-bad"}
+                  >
+                    {model.available ? "Available" : "Unavailable"}
+                  </span>
+                </div>
+              </div>
+              <div className="model-info__callout">
+                <p>{model.description}</p>
+              </div>
             </div>
-          </div>
+          ))}
+        </div>
+      </div>
 
-          {/* Supported Features */}
-          <div className="results-section">
-            <h3>Supported Features</h3>
-            <div className="metadata-grid">
-              <div className="metadata-item">
-                <h4>Spectroscopy Modalities</h4>
-                <p>{systemInfo.supported_modalities?.join(", ") ?? "N/A"}</p>
-              </div>
-              <div className="metadata-item">
-                <h4>Target Spectrum Length</h4>
-                <p>{systemInfo.target_spectrum_length} points</p>
-              </div>
-              <div className="metadata-item">
-                <h4>File Formats</h4>
-                <p>.txt, .csv, .json</p>
-              </div>
-              <div className="metadata-item">
-                <h4>Analysis Types</h4>
-                <p>Single, Batch, Comparison</p>
-              </div>
-            </div>
+      {/* --- Supported Features Card --- */}
+      <div className="card">
+        <h2 className="card__title">Supported Features</h2>
+        <div className="info-grid">
+          <div className="info-item">
+            <label>Modalities</label>
+            <span>{systemInfo.supported_modalities?.join(", ") ?? "N/A"}</span>
           </div>
-        </>
-      )}
+          <div className="info-item">
+            <label>Target Length</label>
+            <span>{systemInfo.target_spectrum_length} points</span>
+          </div>
+          <div className="info-item">
+            <label>File Formats</label>
+            <span>.txt, .csv, .json</span>
+          </div>
+          <div className="info-item">
+            <label>Analysis Types</label>
+            <span>Single, Batch, Comparison</span>
+          </div>
+        </div>
+      </div>
     </div>
   );
 };
