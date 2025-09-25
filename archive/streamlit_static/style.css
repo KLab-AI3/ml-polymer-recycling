@@ -1,0 +1,168 @@
+/* ==========================================================================
+   POLYMEROS - THEME-AWARE CUSTOM STYLESHEET
+   ==========================================================================
+   This file uses Streamlit's theme variables (e.g., var(--text-color))
+   to ensure all custom components adapt to both light and dark themes.
+   ========================================================================== */
+
+/* --- Font Imports --- */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&family=Fira+Code:wght@400&display=swap');
+
+/* --- Base & Typography --- */
+.stApp,
+section[data-testid="stSidebar"],
+div[data-testid="stMetricValue"],
+div[data-testid="stMetricLabel"] {
+    font-family: 'Inter', sans-serif;
+    /* Uses the main text color from the current theme (light or dark) */
+    color: var(--text-color);
+}
+
+.kv-val {
+    font-family: 'Fira Code', monospace;
+}
+
+/* --- Custom Containers: Tabs & Info Boxes --- */
+div[data-testid="stTabs"]>div[role="tablist"]+div {
+    min-height: 400px;
+    /* Uses the secondary background color, which is different in light and dark modes */
+    background-color: var(--secondary-background-color);
+    /* Border color uses a semi-transparent version of the text color for a subtle effect that works on any background */
+    border: 10px solid rgba(128, 128, 128, 0.2);
+    border-radius: 10px;
+    padding: 24px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.info-box {
+    font-size: 0.9rem;
+    padding: 12px 16px;
+    border: 1px solid rgba(128, 128, 128, 0.2);
+    border-radius: 10px;
+    background-color: var(--secondary-background-color);
+}
+
+/* --- Key-Value Pair Styling --- */
+.kv-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 8px 0;
+    border-bottom: 1px solid rgba(128, 128, 128, 0.2);
+}
+
+.kv-row:last-child {
+    border-bottom: none;
+}
+
+.kv-key {
+    opacity: 0.7;
+    font-size: 0.9rem;
+    white-space: nowrap;
+}
+
+.kv-val {
+    font-size: 0.9rem;
+    overflow-wrap: break-word;
+    text-align: right;
+}
+
+/* --- Custom Badges (replaces inline styles) --- */
+.badge {
+    display: inline-block;
+    padding: 4px 8px;
+    font-size: 0.80rem;
+    font-weight: 500;
+    line-height: 1;
+    text-align: center;
+    white-space: nowrap;
+    vertical-align: baseline;
+    border-radius: 6px;
+    font-family: 'Inter', sans-serif;
+}
+
+.badge-info {
+    color: #e2e8f0;
+    background-color: #334155;
+}
+
+.badge-warn {
+    color: #7c2d12;
+    background-color: #fde68a;
+}
+
+.badge-good {
+    color: #064e3b;
+    background-color: #bbf7d0;
+}
+
+.badge-bad {
+    color: #7f1d1d;
+    background-color: #fecaca;
+}
+
+
+/* --- Custom Expander Styling --- */
+
+/* Hide default expander arrow */
+div.stExpander>details>summary::-webkit-details-marker,
+div.stExpander>details>summary::marker,
+div[data-testid="stExpander"] summary svg {
+    display: none !important;
+}
+
+div.stExpander>details>summary::after {
+    /* Custom indicator */
+    content: '↓';
+    font-size: 0.75rem;
+    font-weight: 900;
+    letter-spacing: 0.5px;
+    padding: 4px 12px;
+    border-radius: 999px;
+    /* The primary color is set in config.toml and adapted by Streamlit */
+    background-color: var(--primary);
+    color: white;
+    /* Assuming primary color is dark enough for white text */
+    transition: background-color 0.2s ease-in-out;
+}
+
+div.stExpander>details>summary:hover::after {
+    filter: brightness(90%);
+}
+
+div[data-testid="stExpander"] details {
+    background-color: var(--primary);
+    border-radius: 10px;
+    padding: 10px
+}
+
+[data-testid="stExpanderDetails"] {
+    padding: 16px 4px 4px 4px;
+    background-color: transparent;
+    border-top: 1px solid rgba(128, 128, 128, 0.2);
+    margin-top: 12px;
+}
+
+/* --- Sidebar & Metrics --- */
+section[data-testid="stSidebar"]>div:first-child {
+    background-color: var(--secondary-background-color);
+    border-right: 1px solid rgba(128, 128, 128, 0.2);
+}
+
+div[data-testid="stMetricValue"] {
+    font-size: 1.1rem !important;
+    font-weight: 500;
+}
+
+div[data-testid="stMetricLabel"] {
+    font-size: 0.85rem !important;
+    opacity: 0.8;
+}
+
+/* --- Interactivity & Accessibility --- */
+:focus-visible {
+    /* The focus outline now uses the theme's primary color */
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+    border-radius: 8px;
+}

@@ -20,3 +20,4 @@ node_modules/
 *.pyc
 *.pyo
 *.pyd
+datasets/*
