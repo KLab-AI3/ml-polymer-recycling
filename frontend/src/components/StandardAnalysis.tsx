@@ -82,6 +82,9 @@ const StandardAnalysis: React.FC<StandardAnalysisProps> = ({
           <div
             {...getRootProps()}
             className={`dropzone ${isDragActive ? "dropzone--active" : ""}`}
+            title="Upload a spectrum file by dragging it here or clicking to select. Supported formats: .txt, .csv, .json"
+            aria-label="Spectrum file upload dropzone"
+            tabIndex={0}
           >
             <input {...getInputProps()} />
             {/* Updated Dropzone Text */}
@@ -94,6 +97,10 @@ const StandardAnalysis: React.FC<StandardAnalysisProps> = ({
               <p className="dropzone__subtext">
                 Supports .txt, .csv, and .json files
               </p>
+              <span className="dropzone-tooltip" role="tooltip">
+                Upload a spectrum file for analysis. You can drag and drop or
+                click to select. Supported formats: .txt, .csv, .json
+              </span>
             </div>
           </div>
 

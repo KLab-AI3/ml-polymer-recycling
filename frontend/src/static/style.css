@@ -104,6 +104,60 @@ body {
   gap: var(--spacing-lg);
 }
 
+/* ...existing code... */
+
+.sidebar-expander {
+  margin-top: 2rem;
+  border-radius: var(--radius-md);
+  background: var(--color-bg-alt);
+  box-shadow: var(--shadow-sm);
+  padding: var(--spacing-sm) var(--spacing-md);
+}
+
+.sidebar-expander__toggle {
+  width: 100%;
+  background: none;
+  border: none;
+  font-family: var(--font-main);
+  font-size: 1.08rem;
+  font-weight: 600;
+  color: #0d66ff;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  padding: var(--spacing-xs) 0;
+  transition: color 0.18s;
+}
+
+.sidebar-expander__toggle:hover,
+.sidebar-expander__toggle:focus {
+  color: #084ec4;
+}
+
+.sidebar-expander__icon {
+  font-size: 1.1rem;
+  margin-left: 0.5rem;
+  transition: transform 0.2s;
+}
+.sidebar-title {
+  font-size: 1.1rem;
+  transition: transform 0.2s;
+}
+.sidebar-expander__icon.expanded {
+  transform: rotate(180deg);
+}
+
+.sidebar-expander__panel {
+  margin-top: var(--spacing-sm);
+  font-size: 0.98rem;
+  color: var(--color-text-secondary);
+  background: none;
+  border-radius: var(--radius-sm);
+  padding: 0.2rem 0.1rem;
+  line-height: 1.6;
+}
+
 /* ==========================================================================
   4. SHARED COMPONENT STYLES
   ========================================================================== */
@@ -311,6 +365,7 @@ body {
   width: 100%;
   margin-bottom: var(--spacing-lg);
 }
+/* Dropzone/File Upload Elements */
 .dropzone {
   border: 2px dashed var(--color-border);
   border-radius: var(--radius-md);
@@ -347,6 +402,30 @@ body {
   color: var(--color-text-tertiary);
   margin: 0;
 }
+/* ...existing code... */
+.dropzone-tooltip {
+  display: none;
+  position: absolute;
+  left: 100%;
+  top: 0;
+  margin-left: 1rem;
+  background: #f5f8fa;
+  color: #123249;
+  border: 1px solid #e6eef8;
+  border-radius: 6px;
+  padding: 0.5rem 0.8rem;
+  font-size: 0.95rem;
+  box-shadow: 0 2px 8px rgba(13,102,255,0.07);
+  z-index: 10;
+  width: 220px;
+}
+
+.dropzone:focus .dropzone-tooltip,
+.dropzone:hover .dropzone-tooltip {
+  display: block;
+}
+/* ...existing code... */
+
 .sample-data-prompt {
   display: flex;
   justify-content: center;

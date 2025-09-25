@@ -18,6 +18,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   const [models, setModels] = useState<ModelInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [aboutExpanded, setAboutExpanded] = useState(false);
 
   // --- Effect 1: Fetch models only once on component mount ---
   useEffect(() => {
@@ -44,7 +45,9 @@ const Sidebar: React.FC<SidebarProps> = ({
     if (models.length === 0) return;
 
     const availableModels = models.filter((m) => m.available);
-    const currentModelIsAvailable = availableModels.some((m) => m.name === selectedModel);
+    const currentModelIsAvailable = availableModels.some(
+      (m) => m.name === selectedModel
+    );
 
     // If there are available models but the currently selected one isn't in that list,
     // then update the selection to the first available model.
@@ -53,83 +56,188 @@ const Sidebar: React.FC<SidebarProps> = ({
     }
   }, [models, selectedModel, setSelectedModel]); // This effect correctly depends on these values.
 
-
   const selectedModelInfo = models.find((m) => m.name === selectedModel);
 
   return (
-    <aside className="sidebar">
-      {/* --- CONFIGURATION CARD --- */}
-      <div className="card">
-        <h2 className="card__title">Model Configuration</h2>
-        {error && <div className="error-message">{error}</div>}
-        <div className="form-group">
-          <label htmlFor="model-select" className="form-label">Select Model</label>
-          <select
-            id="model-select"
-            value={selectedModel}
-            onChange={(e) => setSelectedModel(e.target.value)}
-            className="form-select"
-            disabled={loading || models.length === 0}
+    <>
+      <aside className="sidebar">
+        {/* --- ABOUT THIS APP EXPANDER --- */}
+        <div className="sidebar-expander">
+          <button
+            className="sidebar-expander__toggle"
+            onClick={() => setAboutExpanded((prev) => !prev)}
+            aria-expanded={aboutExpanded}
+            aria-controls="about-app-panel"
           >
-            {loading && <option>Loading...</option>}
-            {models
-              .filter((m) => m.available)
-              .map((model) => (
-                <option key={model.name} value={model.name}>
-                  {model.display_name || model.name}
-                </option>
-              ))}
-          </select>
+            <span>About This App</span>
+            <span
+              className={`sidebar-expander__icon${aboutExpanded ? " expanded" : ""}`}
+            >
+              {aboutExpanded ? "▲" : "▼"}
+            </span>
+          </button>
+          {aboutExpanded && (
+            <div className="sidebar-expander__panel" id="about-app-panel">
+              <p>
+                <span className="sidebar-title">
+                  {" "}
+                  AI-Driven Polymer Analysis Platform
+                </span>{" "}
+                <br />
+                <br />
+                <span className="sidebar-title">
+                  {" "}
+                  <b>Purpose:</b> Classify, analyze, and understand polymer
+                  degradation using explainable AI.
+                  <br />
+                </span>
+                <span className="sidebar-title">
+                  <b>Input:</b> Raman & FTIR spectra in .txt, .csv, or .json
+                  formats.
+                  <br />
+                  <br />
+                </span>
+                <span className="sidebar-title">
+                  <b>Contributors:</b>
+                  <br />
+                  Dr. Sanmukh Kuppannagari
+                  <br />
+                  Dr. Metin Karailyan <br />
+                  Jaser Hasan <br />
+                </span>
+              </p>
+            </div>
+          )}
         </div>
-        <div className="form-group">
-          <label htmlFor="modality-select" className="form-label">Spectroscopy Modality</label>
-          <select
-            id="modality-select"
-            value={modality}
-            onChange={(e) => setModality(e.target.value as "raman" | "ftir")}
-            className="form-select"
-          >
-            <option value="raman">Raman Spectroscopy</option>
-            <option value="ftir">FTIR Spectroscopy</option>
-          </select>
+        {/* --- CONFIGURATION CARD --- */}
+        <div className="card">
+          <h2 className="card__title">Model Configuration</h2>
+          {error && <div className="error-message">{error}</div>}
+          <div className="form-group">
+            <label htmlFor="model-select" className="form-label">
+              Select Model
+            </label>
+            <select
+              id="model-select"
+              value={selectedModel}
+              onChange={(e) => setSelectedModel(e.target.value)}
+              className="form-select"
+              disabled={loading || models.length === 0}
+              title="Choose a model for polymer analysis"
+            >
+              {loading && <option>Loading...</option>}
+              {models
+                .filter((m) => m.available)
+                .map((model) => (
+                  <option
+                    key={model.name}
+                    value={model.name}
+                    title={model.description || "No description available"}
+                  >
+                    {model.display_name || model.name}
+                  </option>
+                ))}
+            </select>
+          </div>
+          <div className="form-group">
+            <label htmlFor="modality-select" className="form-label">
+              Spectroscopy Modality
+            </label>
+            <select
+              id="modality-select"
+              value={modality}
+              onChange={(e) => setModality(e.target.value as "raman" | "ftir")}
+              className="form-select"
+              title="Choose the spectroscopy modality for analysis"
+            >
+              {models
+                .filter((m) => m.available)
+                .map((model) => (
+                  <option
+                    key={model.name}
+                    value={model.name}
+                    title={model.description || "No description available"}
+                  >
+                    {model.display_name || model.name}
+                  </option>
+                ))}
+              <option value="raman">Raman Spectroscopy</option>
+              <option value="ftir">FTIR Spectroscopy</option>
+            </select>
+          </div>
         </div>
-      </div>
 
-      {/* --- MODEL INFORMATION CARD --- */}
-      <div className="card">
-        <h2 className="card__title">Model Information</h2>
-        {loading ? (
-          <div className="loading-indicator">
-            <div className="spinner"></div>
-            <span>Loading model details...</span>
-          </div>
-        ) : selectedModelInfo ? (
-          <div>
-            <div className="model-info__meta-grid">
-              <div className="meta-item"><span className="meta-item__label">Accuracy</span><span className="meta-item__value">{((selectedModelInfo.performance?.accuracy ?? 0) * 100).toFixed(1)}%</span></div>
-              <div className="meta-item"><span className="meta-item__label">F1 Score</span><span className="meta-item__value">{((selectedModelInfo.performance?.f1_score ?? 0) * 100).toFixed(1)}%</span></div>
-              <div className="meta-item"><span className="meta-item__label">Parameters</span><span className="meta-item__value">{selectedModelInfo.parameters || "N/A"}</span></div>
-              <div className="meta-item"><span className="meta-item__label">Speed</span><span className="meta-item__value">{selectedModelInfo.speed || "N/A"}</span></div>
+        {/* --- MODEL INFORMATION CARD --- */}
+        <div className="card">
+          <h2 className="card__title">Model Information</h2>
+          {loading ? (
+            <div className="loading-indicator">
+              <div className="spinner"></div>
+              <span>Loading model details...</span>
             </div>
-            <div className="model-info__callout">
-              <h4>Description</h4>
-              <p>{selectedModelInfo.description}</p>
-            </div>
-            {selectedModelInfo.citation && (
-              <div className="model-info__callout">
-                <h4>Citation</h4>
-                <p>{selectedModelInfo.citation}</p>
-                {selectedModelInfo.publication_url && (<a href={selectedModelInfo.publication_url} target="_blank" rel="noopener noreferrer" className="publication-link">View Publication</a>)}
+          ) : selectedModelInfo ? (
+            <div>
+              <div className="model-info__meta-grid">
+                <div className="meta-item">
+                  <span className="meta-item__label">Accuracy</span>
+                  <span className="meta-item__value">
+                    {(
+                      (selectedModelInfo.performance?.accuracy ?? 0) * 100
+                    ).toFixed(1)}
+                    %
+                  </span>
+                </div>
+                <div className="meta-item">
+                  <span className="meta-item__label">F1 Score</span>
+                  <span className="meta-item__value">
+                    {(
+                      (selectedModelInfo.performance?.f1_score ?? 0) * 100
+                    ).toFixed(1)}
+                    %
+                  </span>
+                </div>
+                <div className="meta-item">
+                  <span className="meta-item__label">Parameters</span>
+                  <span className="meta-item__value">
+                    {selectedModelInfo.parameters || "N/A"}
+                  </span>
+                </div>
+                <div className="meta-item">
+                  <span className="meta-item__label">Speed</span>
+                  <span className="meta-item__value">
+                    {selectedModelInfo.speed || "N/A"}
+                  </span>
+                </div>
               </div>
-            )}
-          </div>
-        ) : (
-          <div className="placeholder-text">
-            <p>Select a model to see its details.</p>
-          </div>
-        )}
-      </div>
-    </aside>
+              <div className="model-info__callout">
+                <h4>Description</h4>
+                <p>{selectedModelInfo.description}</p>
+              </div>
+              {selectedModelInfo.citation && (
+                <div className="model-info__callout">
+                  <h4>Citation</h4>
+                  <p>{selectedModelInfo.citation}</p>
+                  {selectedModelInfo.publication_url && (
+                    <a
+                      href={selectedModelInfo.publication_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="publication-link"
+                    >
+                      View Publication
+                    </a>
+                  )}
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="placeholder-text">
+              <p>Select a model to see its details.</p>
+            </div>
+          )}
+        </div>
+      </aside>
+    </>
   );
 };
 
