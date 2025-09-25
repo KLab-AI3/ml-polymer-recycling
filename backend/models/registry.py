@@ -151,7 +151,7 @@ def register_model(
     _MODEL_SPECS[name] = spec
 
 
-def spec(name: str):
+def registry_spec(name: str):
     """Return expected input length and number of classes for a model key."""
     if name in _MODEL_SPECS:
         return _MODEL_SPECS[name].copy()
@@ -224,7 +224,7 @@ def get_model_capabilities(name: str) -> Dict[str, Any]:
 __all__ = [
     "choices",
     "build",
-    "spec",
+    "registry_spec",
     "build_multiple",
     "register_model",
     "get_model_info",

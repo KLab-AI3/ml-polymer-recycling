@@ -4,8 +4,6 @@ Enhanced API endpoints with explainability features.
 Extends the existing FastAPI backend with SHAP-based model explanations
 and improved prediction capabilities.
 """
-
-from backend.models.registry import choices  # Ensure choices is imported
 from backend.config import TARGET_LEN  # Import TARGET_LEN for model loading
 import numpy as np
 import torch
@@ -13,7 +11,7 @@ from typing import Dict, Any, List, Optional
 from fastapi import HTTPException  # Keep HTTPException for API errors
 # PredictionResult is not directly returned by this service
 from backend.pydantic_models import SpectrumData
-from backend.models.registry import build as build_model, choices
+from backend.models.registry import build as build_model, choices, registry_spec
 from backend.utils.preprocessing_fixed import SpectrumPreprocessor
 
 import os
@@ -34,6 +32,14 @@ class EnhancedMLService:
         self.device = torch.device(
             "cuda" if torch.cuda.is_available() else "cpu")
         print(f"✅ Enhanced ML Service initialized on {self.device}")
+
+
+    def cache_model(self, model_name: str, model_instance, preprocessor):
+        """Public method to cache a model and its preprocessor."""
+        self._model_cache[model_name] = {
+            'model': model_instance,
+            'preprocessor': preprocessor
+        }
 
     def predict_with_explanation(
         self,
@@ -290,20 +296,15 @@ def initialize_enhanced_service():
             model_instance, weights_loaded, _ = enhanced_ml_service.model_manager.load_model(
                 model_name, TARGET_LEN)
             if model_instance and weights_loaded:
-                # If successful, create and cache its preprocessor
                 preprocessor = SpectrumPreprocessor(
                     target_len=TARGET_LEN,
                     do_baseline=True,
-                    do_smooth=True,  # Modality will be set at prediction time
-                    do_normalize=True,  # Default to raman, will be updated on-demand
+                    do_smooth=True,
+                    do_normalize=True,
                     modality="raman"
                 )
-                enhanced_ml_service._model_cache[model_name] = {
-                    'model': model_instance,
-                    'preprocessor': preprocessor
-                }
-                print(
-                    f"✅ Enhanced ML Service: Prepared model '{model_name}' with preprocessor.")
+                enhanced_ml_service.cache_model(model_name, model_instance, preprocessor)
+                print(f"✅ Enhanced ML Service: Prepared model '{model_name}' with preprocessor.")
             else:
                 print(
                     f"⚠️ Enhanced ML Service: Model '{model_name}' not fully loaded or weights missing.")
