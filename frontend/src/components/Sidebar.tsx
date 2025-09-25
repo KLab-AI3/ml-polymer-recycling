@@ -19,6 +19,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [aboutExpanded, setAboutExpanded] = useState(false);
+  const [helpExpanded, setHelpExpanded] = useState(false);
 
   // --- Effect 1: Fetch models only once on component mount ---
   useEffect(() => {
@@ -81,23 +82,23 @@ const Sidebar: React.FC<SidebarProps> = ({
               <p>
                 <span className="sidebar-title">
                   {" "}
-                  AI-Driven Polymer Analysis Platform
+                  <b>AI-Driven Polymer Analysis Platform</b>
                 </span>{" "}
                 <br />
                 <br />
-                <span className="sidebar-title">
+                <span className="sidebar-content">
                   {" "}
                   <b>Purpose:</b> Classify, analyze, and understand polymer
                   degradation using explainable AI.
                   <br />
                 </span>
-                <span className="sidebar-title">
+                <span className="sidebar-content">
                   <b>Input:</b> Raman & FTIR spectra in .txt, .csv, or .json
                   formats.
                   <br />
                   <br />
                 </span>
-                <span className="sidebar-title">
+                <span className="sidebar-content">
                   <b>Contributors:</b>
                   <br />
                   Dr. Sanmukh Kuppannagari
@@ -236,6 +237,97 @@ const Sidebar: React.FC<SidebarProps> = ({
             </div>
           )}
         </div>
+
+        {/* --- HELP & SUPPORT EXPANDER --- */}
+        {/* <div className="sidebar-expander">
+          <button
+            className="sidebar-expander__toggle"
+            onClick={() => setHelpExpanded((prev) => !prev)}
+            aria-expanded={helpExpanded}
+            aria-controls="help-panel"
+          >
+            <span>How to Get Started & Supported Formats</span>
+            <span
+              className={`sidebar-expander__icon${helpExpanded ? " expanded" : ""}`}
+            >
+              {helpExpanded ? "▲" : "▼"}
+            </span>
+          </button>
+          {helpExpanded && (
+            <div className="sidebar-expander__panel" id="help-panel">
+              <h4>How to Get Started</h4>
+              <ol>
+                <li>
+                  <strong>Select an AI Model:</strong> Use the sidebar dropdown
+                  to choose a model trained for Raman or FTIR spectra.
+                </li>
+                <li>
+                  <strong>Choose Input Mode:</strong>
+                  <ul>
+                    <li>
+                      <b>Upload File:</b> Analyze a single spectrum file.
+                    </li>
+                    <li>
+                      <b>Batch Upload:</b> Process multiple spectra at once.
+                    </li>
+                    <li>
+                      <b>Sample Data:</b> Try built-in example spectra for quick
+                      testing.
+                    </li>
+                  </ul>
+                </li>
+                <li>
+                  <strong>Set Modality:</strong> Select Raman or FTIR to match
+                  your data type.
+                </li>
+                <li>
+                  <strong>Run Analysis:</strong> Click <b>Run Analysis</b> to
+                  classify and view results, including confidence,
+                  probabilities, and model explainability.
+                </li>
+              </ol>
+              <h4>Supported Data Format</h4>
+              <ul>
+                <li>
+                  <b>File Types:</b> .txt, .csv, .json
+                </li>
+                <li>
+                  <b>Required Columns:</b> Wavenumber and Intensity (two
+                  columns, header optional).
+                </li>
+                <li>
+                  <b>Separators:</b> Space or comma separated values.
+                </li>
+                <li>
+                  <b>Preprocessing:</b> Spectra are automatically resampled to
+                  500 points and baseline-corrected for model input.
+                </li>
+                <li>
+                  <b>Examples:</b> Use <b>Sample Data</b> mode or visit{" "}
+                  <a
+                    href="https://openspecy.org/"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    Open Specy
+                  </a>{" "}
+                  for public datasets.
+                </li>
+              </ul>
+              <h4>Features</h4>
+              <ul>
+                <li>AI-powered polymer classification and aging prediction</li>
+                <li>
+                  Model explainability: see which spectral regions influenced
+                  predictions
+                </li>
+                <li>Performance metrics and quality control checks</li>
+                <li>Supports both Raman and FTIR modalities</li>
+                <li>Batch analysis for multiple spectra</li>
+              </ul>
+            </div>
+          )}
+        </div> */}
       </aside>
     </>
   );

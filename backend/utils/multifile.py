@@ -12,9 +12,9 @@ import csv
 import hashlib
 
 from backend.utils.preprocessing import preprocess_spectrum
-from .errors import ErrorHandler
-from .confidence import calculate_softmax_confidence
-from ..config import TARGET_LEN
+from backend.utils.errors import ErrorHandler
+from backend.utils.confidence import calculate_softmax_confidence
+from backend.config import TARGET_LEN
 
 
 def detect_file_format(filename: str, content: str) -> str:
@@ -433,7 +433,7 @@ def process_multiple_files(
     results = []
     total_files = len(uploaded_files)
 
-    ErrorHandler.log_info(
+    ErrorHandler.log_message(
         f"Starting batch processing of {total_files} files with modality '{modality}'"
     )
 
@@ -473,7 +473,7 @@ def process_multiple_files(
     if progress_callback:
         progress_callback(total_files, total_files, "Complete")
 
-    ErrorHandler.log_info(
+    ErrorHandler.log_message(
         f"Completed batch processing: {sum(1 for r in results if r.get('success', False))}/{total_files} successful"
     )
 

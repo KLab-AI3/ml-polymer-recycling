@@ -116,6 +116,7 @@ class ModelManager:
             info['available'] = True
         else:
             # Check if weights exist even if not loaded yet
+            model_name = model_name.lower()
             weights_exist = any((Path("backend/models/weights") / f"{model_name}_model.pth").exists() or \
                                 (Path("backend/models/weights") / f"{model_name}.pth").exists()
                                 for _ in [0]) # Dummy loop to check both paths
