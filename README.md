@@ -19,7 +19,7 @@ license: apache-2.0
 
 ---
 
-## 🌍 Overview
+## Overview
 
 **PolymerOS** is a full-stack AI application that classifies the degradation state of polymers using **Raman** and **FTIR spectroscopy**.
 It enables scientists, engineers, and researchers to upload spectroscopic data and receive predictions on whether materials are **stable (unweathered)** or **weathered (degraded)**.
@@ -28,21 +28,21 @@ This platform was designed for both research reproducibility and production-grad
 
 ---
 
-## ✨ Features
+## Features
 
-- 🔬 **Multi-Modal Input**: Supports Raman and FTIR data
-- 📂 **Flexible File Formats**: Accepts `.txt`, `.csv`, `.json` (auto-detected)
-- 🤖 **Model Zoo**: Figure2CNN, ResNet1D, ResNet18Vision, and custom CNNs
-- 📊 **Batch & Single-Spectrum Analysis**
-- ⚖️ **Multi-Model Comparison**
-- 🧾 **Provenance Tracking**: QC checks + preprocessing metadata
-- 📈 **Performance Dashboard**
-- 📡 **RESTful API** for programmatic access
-- 🎨 **Modern UI**: React + TypeScript, charting with Recharts
+- **Multi-Modal Input**: Supports Raman and FTIR data
+- **Flexible File Formats**: Accepts `.txt`, `.csv`, `.json` (auto-detected)
+- **Model Zoo**: Figure2CNN, ResNet1D, ResNet18Vision, and custom CNNs
+- **Batch & Single-Spectrum Analysis**
+- **Multi-Model Comparison**
+- **Provenance Tracking**: QC checks + preprocessing metadata
+- **Performance Dashboard**
+- **RESTful API** for programmatic access
+- **Modern UI**: React + TypeScript, charting with Recharts
 
 ---
 
-## 🏛 Architecture
+## Architecture
 
 PolymerOS is a **monorepo** with a React frontend and FastAPI backend, packaged for **single-container deployment**.
 
@@ -70,7 +70,7 @@ polymeros/
 
 ---
 
-## 📡 Data Flow
+## Data Flow
 
 Example: Standard Spectrum Analysis
 
@@ -91,7 +91,7 @@ sequenceDiagram
 
 ---
 
-## 🛠 Getting Started
+## Getting Started
 
 ### Prerequisites
 
