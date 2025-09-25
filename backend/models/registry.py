@@ -7,17 +7,17 @@ from .enhanced_cnn import EnhancedCNN, EfficientSpectralCNN, HybridSpectralNet
 
 # Internal registry of model builders keyed by short name.
 _REGISTRY: Dict[str, Callable[[int], object]] = {
-    "figure2": lambda L: Figure2CNN(input_length=L),
-    "resnet": lambda L: ResNet1D(input_length=L),
-    "resnet18vision": lambda L: ResNet18Vision(input_length=L),
-    "enhanced_cnn": lambda L: EnhancedCNN(input_length=L),
-    "efficient_cnn": lambda L: EfficientSpectralCNN(input_length=L),
-    "hybrid_net": lambda L: HybridSpectralNet(input_length=L),
+    "Figure2": lambda L: Figure2CNN(input_length=L),
+    "ResNet": lambda L: ResNet1D(input_length=L),
+    "ResNet18Vision": lambda L: ResNet18Vision(input_length=L),
+    "Enhanced_cnn": lambda L: EnhancedCNN(input_length=L),
+    "Efficient_cnn": lambda L: EfficientSpectralCNN(input_length=L),
+    "Hybrid_Net": lambda L: HybridSpectralNet(input_length=L),
 }
 
 # Model specifications with metadata for enhanced features
 _MODEL_SPECS: Dict[str, Dict[str, Any]] = {
-    "figure2": {
+    "Figure2": {
         "input_length": 500,
         "num_classes": 2,
         "description": "Figure 2 baseline custom implementation",
@@ -27,7 +27,7 @@ _MODEL_SPECS: Dict[str, Dict[str, Any]] = {
         "parameters": "~500K",
         "speed": "fast",
     },
-    "resnet": {
+    "ResNet": {
         "input_length": 500,
         "num_classes": 2,
         "description": "(Residual Network) uses skip connections to train much deeper networks",
@@ -37,7 +37,7 @@ _MODEL_SPECS: Dict[str, Dict[str, Any]] = {
         "parameters": "~100K",
         "speed": "very_fast",
     },
-    "resnet18vision": {
+    "ResNet18Vision": {
         "input_length": 500,
         "num_classes": 2,
         "description": "excels at image recognition tasks by using 'residual blocks' to train more efficiently",
@@ -47,7 +47,7 @@ _MODEL_SPECS: Dict[str, Dict[str, Any]] = {
         "parameters": "~11M",
         "speed": "medium",
     },
-    "enhanced_cnn": {
+    "Enhanced_cnn": {
         "input_length": 500,
         "num_classes": 2,
         "description": "Enhanced CNN with attention mechanisms and multi-scale feature extraction",
@@ -58,7 +58,7 @@ _MODEL_SPECS: Dict[str, Dict[str, Any]] = {
         "speed": "medium",
         "features": ["attention", "multi_scale", "batch_norm", "dropout"],
     },
-    "efficient_cnn": {
+    "Efficient_cnn": {
         "input_length": 500,
         "num_classes": 2,
         "description": "Efficient CNN optimized for real-time inference with depthwise separable convolutions",
@@ -69,7 +69,7 @@ _MODEL_SPECS: Dict[str, Dict[str, Any]] = {
         "speed": "very_fast",
         "features": ["depthwise_separable", "lightweight", "real_time"],
     },
-    "hybrid_net": {
+    "Hybrid_Net": {
         "input_length": 500,
         "num_classes": 2,
         "description": "Hybrid network combining CNN backbone with self-attention mechanisms",
@@ -140,7 +140,7 @@ def build_multiple(names: List[str], input_length: int) -> Dict[str, Any]:
 
 
 def register_model(
-    name: str, builder: Callable[[int], object], model_spec: Dict[str, Any]
+    name: str, builder: Callable[[int], object], spec: Dict[str, Any]
 ) -> None:
     """Dynamically register a new model."""
     if name in _REGISTRY:
@@ -148,7 +148,7 @@ def register_model(
     if not callable(builder):
         raise TypeError("Builder must be a callable that accepts an integer argument.")
     _REGISTRY[name] = builder
-    _MODEL_SPECS[name] = model_spec
+    _MODEL_SPECS[name] = spec
 
 
 def spec(name: str):
@@ -204,8 +204,8 @@ def get_model_capabilities(name: str) -> Dict[str, Any]:
     if name not in _MODEL_SPECS:
         raise KeyError(f"Unknown model '{name}'")
 
-    model_spec = _MODEL_SPECS[name].copy()
-    model_spec.update(
+    spec = _MODEL_SPECS[name].copy()
+    spec.update(
         {
             "available": True,
             "status": "active",
@@ -218,7 +218,7 @@ def get_model_capabilities(name: str) -> Dict[str, Any]:
             },
         }
     )
-    return model_spec
+    return spec
 
 
 __all__ = [
