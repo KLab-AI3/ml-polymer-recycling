@@ -1,6 +1,14 @@
 /// <reference types="react" />
-/* @jsx React.createElement */
-/* @jsxFrag React.Fragment */
+// Provide a minimal JSX global declaration to satisfy TypeScript in environments
+// where the React JSX types or the new jsx-runtime types are not available.
+declare global {
+  namespace JSX {
+    interface IntrinsicElements {
+      [elemName: string]: any;
+    }
+  }
+}
+
 import React, { useState } from "react";
 import "./static/style.css";
 import Header from "./components/Header";
@@ -11,6 +19,8 @@ import PerformanceTracking from "./components/PerformanceTracking";
 import ExplainabilityPanel from "./components/ExplainabilityPanel";
 import { SpectrumData } from "./apiClient";
 
+const h = React.createElement;
+
 function App() {
   const [activeTab, setActiveTab] = useState("standard");
   const [selectedModel, setSelectedModel] = useState("figure2");
@@ -20,80 +30,87 @@ function App() {
   const renderActiveTab = () => {
     switch (activeTab) {
       case "standard":
-        return (
-          <StandardAnalysis
-            selectedModel={selectedModel}
-            modality={modality}
-            onSpectrumChange={setSpectrumData}
-          />
-        );
+        return h(StandardAnalysis, {
+          selectedModel,
+          modality,
+          onSpectrumChange: setSpectrumData,
+        });
       case "comparison":
-        return <ModelComparison modality={modality} />;
+        return h(ModelComparison, { modality });
       case "performance":
-        return <PerformanceTracking />;
+        return h(PerformanceTracking, null);
       case "explainability":
-        return (
-          <ExplainabilityPanel
-            spectrumData={spectrumData}
-            selectedModel={selectedModel}
-            modality={modality}
-            onExplainabilityResult={(result: any) =>
-              console.log("Explainability result:", result)
-            }
-          />
-        );
+        return h(ExplainabilityPanel, {
+          spectrumData,
+          selectedModel,
+          modality,
+          onExplainabilityResult: (result: any) =>
+            console.log("Explainability result:", result),
+        });
       default:
-        return (
-          <StandardAnalysis
-            selectedModel={selectedModel}
-            modality={modality}
-            onSpectrumChange={setSpectrumData}
-          />
-        );
+        return h(StandardAnalysis, {
+          selectedModel,
+          modality,
+          onSpectrumChange: setSpectrumData,
+        });
     }
   };
 
-  return (
-    <div className="app-container">
-      <Header />
-      <div className="app-layout">
-        <Sidebar
-          selectedModel={selectedModel}
-          setSelectedModel={setSelectedModel}
-          modality={modality}
-          setModality={setModality}
-        />
-        <main className="main-content">
-          <div className="tabs">
-            <button
-              className={`tab ${activeTab === "standard" ? "active" : ""}`}
-              onClick={() => setActiveTab("standard")}
-            >
-              Standard Analysis
-            </button>
-            <button
-              className={`tab ${activeTab === "comparison" ? "active" : ""}`}
-              onClick={() => setActiveTab("comparison")}
-            >
-              Model Comparison
-            </button>
-            <button
-              className={`tab ${activeTab === "explainability" ? "active" : ""}`}
-              onClick={() => setActiveTab("explainability")}
-            >
-              AI Explainability
-            </button>
-            <button
-              className={`tab ${activeTab === "performance" ? "active" : ""}`}
-              onClick={() => setActiveTab("performance")}
-            >
-              Performance Tracking
-            </button>
-          </div>
-          <div className="tab-content">{renderActiveTab()}</div>
-        </main>
-      </div>
-    </div>
+  return h(
+    "div",
+    { className: "app-container" },
+    h(Header, null),
+    h(
+      "div",
+      { className: "app-layout" },
+      h(Sidebar, {
+        selectedModel,
+        setSelectedModel,
+        modality,
+        setModality,
+      }),
+      h(
+        "main",
+        { className: "main-content" },
+        h(
+          "div",
+          { className: "tabs" },
+          h(
+            "button",
+            {
+              className: `tab ${activeTab === "standard" ? "active" : ""}`,
+              onClick: () => setActiveTab("standard"),
+            },
+            "Standard Analysis"
+          ),
+          h(
+            "button",
+            {
+              className: `tab ${activeTab === "comparison" ? "active" : ""}`,
+              onClick: () => setActiveTab("comparison"),
+            },
+            "Model Comparison"
+          ),
+          h(
+            "button",
+            {
+              className: `tab ${activeTab === "explainability" ? "active" : ""}`,
+              onClick: () => setActiveTab("explainability"),
+            },
+            "AI Explainability"
+          ),
+          h(
+            "button",
+            {
+              className: `tab ${activeTab === "performance" ? "active" : ""}`,
+              onClick: () => setActiveTab("performance"),
+            },
+            "Performance Tracking"
+          )
+        ),
+        h("div", { className: "tab-content" }, renderActiveTab())
+      )
+    )
   );
 }
 
