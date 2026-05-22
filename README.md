@@ -164,7 +164,10 @@ PolymerOS is optimized for deployment on Hugging Face Spaces with unified API + 
 
 ## Contributors
 
-- **Jaser Hasan** — Author & Developer
+- **Dhoopshikha Lakshmi Devi Basgeet**
+- **Jaser Hasan** — Developer
+- **Konpal Raheja**
+- **Divita Mathur**
 - **Dr. Sanmukh Kuppannagari** — Mentor
 - **Dr. Metin Karailyan** — Mentor
 

@@ -101,10 +101,12 @@ const Sidebar: React.FC<SidebarProps> = ({
                 <span className="sidebar-content">
                   <b>Contributors:</b>
                   <br />
-                  Dr. Sanmukh Kuppannagari
-                  <br />
-                  Dr. Metin Karailyan <br />
+                  Dhoopshikha Lakshmi Devi Basgeet < br />
                   Jaser Hasan <br />
+                  Konpal Raheja < br />
+                  Divita Mathur < br/>
+                  Dr. Sanmukh Kuppannagari<br />
+                  Dr. Metin Karailyan <br />
                 </span>
               </p>
             </div>

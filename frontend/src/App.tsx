@@ -1,3 +1,6 @@
+/// <reference types="react" />
+/* @jsx React.createElement */
+/* @jsxFrag React.Fragment */
 import React, { useState } from "react";
 import "./static/style.css";
 import Header from "./components/Header";
