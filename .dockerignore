@@ -1,0 +1,49 @@
+# Exclude Git history (huge security risk if leaked into an image)
+.git/
+.gitignore
+
+# Exclude secrets, credentials and local environment configs
+.env
+.env.*
+*.pem
+*.key
+*.cert
+*.p12
+credentials.json
+
+# Exclude local Python environments and cache
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+ENV/
+
+# Exclude local Node modules and frontend builds (they are rebuilt in Docker)
+node_modules/
+frontend/node_modules/
+frontend/build/
+frontend/dist/
+.eslintcache
+
+# Exclude logs, local data, and local test outputs
+*.log
+tmp/
+backend/tests/
+*.sqlite3
+*.db
+
+# Exclude IDE and OS files (prevents dev machine details leakage)
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.swp
+
+# Optional: Exclude documentation to reduce build context size
+*.md
+
+# Exclude Dockerfile itself
+Dockerfile
+.dockerignore

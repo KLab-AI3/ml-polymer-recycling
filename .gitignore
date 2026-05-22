@@ -1,0 +1,59 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+
+# Logs
+*.log
+tmp/logs/
+backend/tests/test_output/
+
+# Node/Frontend
+node_modules/
+frontend/node_modules/
+frontend/build/
+.eslintcache
+
+# OS-specific
+.DS_Store
+Thumbs.db
+
+# Large Model Weights (Safety catch - even though we use LFS)
+# backend/models/weights/*.pth # Commented out because we DO want to track them via LFS
+
+# Security & Secrets
+.env*
+*.pem
+*.key
+*.cert
+*.p12
+*secret*
+credentials.json
+
+# Local Databases
+*.sqlite3
+*.db
+
+# IDE & Editor Settings (Can leak local paths)
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Coverage and Reports
+.coverage
+htmlcov/
+coverage.xml
+
+Makefile
+tmp/
+/tmp
+*.log
+log
